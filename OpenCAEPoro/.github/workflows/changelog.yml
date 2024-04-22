@@ -1,0 +1,39 @@
+name: Changelog
+
+on:
+  pull_request:
+
+    types: [opened]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Filter pull request
+        id: filter
+        uses: deepakputhraya/action-pr-title@master
+        with:
+          allowed_prefixes: 'Release' # title should start with the given prefix
+
+      - name: return 0
+        run: exit 0
+        if: always() && (steps.filter.outcome == 'failure')
+
+
+      - uses: actions/checkout@v2
+
+      - name: Run Changelog CI
+        uses: saadmk11/changelog-ci@v1.0.0
+        id: changelog-ci
+        with:
+          config_file: .github/changelog-ci-config.yaml
+      - name: Get Changelog Output
+        run: |
+          echo "${{ steps.changelog-ci.outputs.changelog }}"
+          echo "${{ steps.changelog-ci.outputs.changelog }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Get PR number
+        run: |
+          echo ${{ github.event.number }}
+      

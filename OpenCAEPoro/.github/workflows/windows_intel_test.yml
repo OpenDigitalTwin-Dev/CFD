@@ -1,0 +1,30 @@
+name: Windows Intel Test
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Windows Intel Build"]
+    types:
+      - completed
+env:
+    CI: false
+jobs:
+    test:
+        runs-on: [self-hosted, Windows]
+        defaults:
+            run:
+                shell: cmd
+        steps:
+            - name: Basic info
+              run: |
+                  echo "Build for ${{ github.ref }} branch in ${{ github.repository }} repository."
+                  echo "Job triggered by ${{ github.event_name }}, on self-hosted ${{ runner.os }}."  
+                    echo "Log level: ${{ github.event.inputs.logLevel }}"
+                  echo "Tags: ${{ github.event.inputs.tags }}"
+            - name: Check out repository
+              uses: actions/checkout@v3
+              with:
+                  fetch-depth: 0
+            - name: test 
+              run: |
+                  set FASP_DIR=C:/Program Files (x86)/faspsolver
+                  cli.bat test -b Release -c intel

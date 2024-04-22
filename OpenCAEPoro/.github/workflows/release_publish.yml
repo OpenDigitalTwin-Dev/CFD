@@ -1,0 +1,38 @@
+name: Release Publish
+
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+
+jobs:
+  create_pull_request:
+    permissions:
+      # write permission is required to create a github release
+      contents: write
+      # write permission is required for autolabeler
+      # otherwise, read permission is required at least
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: update package.json version
+        id: info
+        uses: jaywcjlove/github-action-package@main
+        with:
+          path: doc/package.json
+          version: ${{ github.event.release.tag_name }}
+          
+      - run: echo "name - ${{ steps.info.outputs.name }}"
+      - run: echo "version - ${{ steps.info.outputs.version }}"
+      - run: echo "description - ${{ steps.info.outputs.description }}"
+      - run: echo "author - ${{ steps.info.outputs.author }}"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v4
+        with:
+          title: Release ${{ github.event.release.tag_name }}
+          body: Update changelog for ${{ github.event.release.tag_name }}
+          branch: update-changelog
