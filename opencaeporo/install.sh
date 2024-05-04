@@ -13,7 +13,7 @@ rm -rf examples
 
 mkdir build
 cd build
-cmake .. -DFASP_DIR=$PWD/../../../NLA/faspsolver_install/ -DCMAKE_INSTALL_PREFIX=$PWD/../../opencaeporo_install
+cmake .. -DFASP_DIR=$PWD/../../../NLA/install/faspsolver_install/ -DCMAKE_INSTALL_PREFIX=$PWD/../../install/opencaeporo_install
 make -j4
 make install
 
