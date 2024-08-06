@@ -1,0 +1,42 @@
+#                            -*- mode: org; -*-
+#
+#+TITLE:              OpenFOAM-dev Third-Party packages
+#+AUTHOR:                  The OpenFOAM Foundation
+#+DATE:                        5th July 2024
+#+LINK:                    https://www.openfoam.org
+#+OPTIONS: author:nil ^:{}
+# Copyright (c) 2014-2024 OpenFOAM Foundation.
+
+* Description
+  OpenFOAM uses some additional software for visualisation (ParaView), parallelisation
+  (OpenMPI) and decomposition (options including Scotch/PtScotch, Zoltan, METIS/ParMETIS).
+  By default, OpenFOAM is configured to use standard system installations of these packages,
+  except for some packages (Scotch and Zoltan) whose source code is provided and automatically
+  compiled, as described here: https://openfoam.org/download/source/third-party-software
+
+  Users can optionally compile software packages rather than install system versions.  To do so,
+  they need to download the source code of the relevant package(s) before running installation
+  script(s).
+* Downloading additional software
+  Links to the source code of recommended versions of additional packages are listed below.  Any
+  package selected should be downloaded and unpacked in the third-party directory (~ThirdParty-dev~).
+*** Scotch/PtScotch
+    + https://gforge.inria.fr/frs/download.php/file/38187/scotch_6.0.9.tar.gz
+    + This package is already present in the third-party directory.
+*** Zoltan
+    + https://github.com/sandialabs/Zoltan/archive/refs/tags/v3.90.tar.gz
+    + This package is already present in the third-party directory.
+*** METIS/ParMETIS
+    + METIS is software used for decomposition, released under a permissive open source licence,
+      which itself runs in serial.
+    + ParMETIS is the equivalent software which runs in parallel, which is released under the
+      following licence: https://github.com/KarypisLab/ParMETIS/blob/main/LICENSE
+    + METIS: http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/metis-5.1.0.tar.gz
+    + ParMETIS: http://glaros.dtc.umn.edu/gkhome/fetch/sw/parmetis/parmetis-4.0.3.tar.gz
+*** OpenMPI
+    + https://www.open-mpi.org/software/ompi/v2.1/downloads/openmpi-2.1.1.tar.bz2
+*** ParaView
+    + https://www.paraview.org/files/v5.11/ParaView-v5.11.2.tar.gz
+    + This package is automatically downloaded by its installation script.
+
+# --------------------------------------------------------------------------

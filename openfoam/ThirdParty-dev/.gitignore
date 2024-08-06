@@ -1,0 +1,33 @@
+# Ignore editor and misc backup files - anywhere
+*~
+.*~
+*.bak
+*.bak[0-9][0-9]
+\#*\#
+
+# Ignore source packages - anywhere
+*.tar.bz2
+*.tar.gz
+*.tar.xz
+*.tar
+*.tgz
+*.gtgz
+
+# Ignore build and platforms folders
+build/
+platforms/
+
+# Ignore deprecated scripts
+etc/relocateQt
+etc/tools/QtFunctions
+etc/wmakeFiles/tecio/
+makeQt
+
+# Ignore unpacked sources in the main directory (match pkg-ver)
+/*[-_][0-9]*
+
+# Include decomposition library sources
+!/scotch_6.0.9
+!/Zoltan-3.90
+
+# End-of-file

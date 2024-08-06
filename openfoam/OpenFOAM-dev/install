@@ -1,0 +1,7 @@
+sudo apt install build-essential libopenmpi-dev zlib1g-dev gnuplot gnuplot-x11 libxt-dev cmake flex paraview-dev
+sudo apt install libxml2-dev libhdf5-dev libavfilter-dev libtheora-dev libgl2ps-dev libx11-dev libqt5x11extras5-dev libglew-dev libutfcpp-dev libdouble-conversion-dev libfreetype-dev libqt5svg5-dev qtxmlpatterns5-dev-tools qttools5-dev python3-dev libpdal-dev
+source etc/bashrc
+#export ZOLTAN_ARCH_DIR=/home/jiping/FENGSim/toolkit/NSM/extern/ALE/install/zoltan
+#export ZOLTAN_INCLUDE_DIR=/home/jiping/FENGSim/toolkit/NSM/extern/ALE/install/zoltan/include
+#export ZOLTAN_LIB_DIR=/home/jiping/FENGSim/toolkit/NSM/extern/ALE/install/zoltan/lib
+./Allwmake -q -j 32

@@ -1,0 +1,2 @@
+rm -rf OpenFOAM-dev/platforms
+rm -rf ThirdParty-dev/platforms
