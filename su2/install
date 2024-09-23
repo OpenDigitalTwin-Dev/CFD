@@ -1,0 +1,10 @@
+sudo apt update
+sudo apt -y install cmake make gcc g++ p7zip-full
+
+7za x externals.7z -o/$PWD/
+7za x ninja.7z -o/$PWD/
+7za x subprojects.7z -o/$PWD/
+
+# ./meson.py build --reconfigure --prefix=$PWD/install_su2
+./meson.py build --prefix=$PWD/../install/install_su2
+./ninja -C build install -j4
