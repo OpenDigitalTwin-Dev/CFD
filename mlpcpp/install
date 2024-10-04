@@ -1,0 +1,6 @@
+sudo apt -y install g++ gcc cmake make
+
+mkdir build
+cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=$PWD/../../install/mlpcpp_install
+make
