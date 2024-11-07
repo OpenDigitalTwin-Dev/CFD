@@ -1,0 +1,7 @@
+sudo apt -y install gcc g++ make m4 libmpich-dev libperl5.34
+
+mkdir build
+cd build
+./../configure --prefix=$PWD/../../install/libmesh_install
+make -j4
+make install

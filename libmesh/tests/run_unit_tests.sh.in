@@ -1,0 +1,33 @@
+#!/bin/sh
+
+set -e
+
+# Run executables from most-debugging-enabled to least-, so if
+# there's a failure we get the most informative death possible
+ORDERED_METHODS="dbg debug devel profiling pro prof oprofile oprof optimized opt"
+
+# when run outside of the automake environment make sure we get METHODS set
+# to something useful
+if (test "x${METHODS}" = "x"); then
+    if (test "x${METHOD}" = "x"); then
+        METHODS="@METHODS@"
+    else
+        METHODS="$METHOD"
+    fi
+fi
+
+for method in ${ORDERED_METHODS}; do
+    for mymethod in ${METHODS}; do
+        if (test "x${mymethod}" = "x${method}"); then
+            MY_METHODS="${MY_METHODS} ${mymethod}"
+        fi
+    done
+done
+
+for method in ${MY_METHODS}; do
+@ACSM_ENABLE_GLIBCXX_DEBUGGING_CPPUNIT_FALSE@@ACSM_ENABLE_GLIBCXX_DEBUGGING_TRUE@    if [ "x$method" = "xdbg" ]; then
+@ACSM_ENABLE_GLIBCXX_DEBUGGING_CPPUNIT_FALSE@@ACSM_ENABLE_GLIBCXX_DEBUGGING_TRUE@      continue;
+@ACSM_ENABLE_GLIBCXX_DEBUGGING_CPPUNIT_FALSE@@ACSM_ENABLE_GLIBCXX_DEBUGGING_TRUE@    fi
+    echo $LIBMESH_RUN ./unit_tests-$method --option-with-dashes --option_with_underscores 3 $LIBMESH_OPTIONS
+    $LIBMESH_RUN ./unit_tests-$method --option-with-dashes --option_with_underscores 3 $LIBMESH_OPTIONS
+done

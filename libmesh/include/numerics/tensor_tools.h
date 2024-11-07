@@ -1,0 +1,443 @@
+// The libMesh Finite Element Library.
+// Copyright (C) 2002-2024 Benjamin S. Kirk, John W. Peterson, Roy H. Stogner
+
+// This library is free software; you can redistribute it and/or
+// modify it under the terms of the GNU Lesser General Public
+// License as published by the Free Software Foundation; either
+// version 2.1 of the License, or (at your option) any later version.
+
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+// Lesser General Public License for more details.
+
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+
+
+#ifndef LIBMESH_TENSOR_TOOLS_H
+#define LIBMESH_TENSOR_TOOLS_H
+
+// Local includes
+#include "libmesh/libmesh_common.h"
+#include "libmesh/compare_types.h"
+
+#ifdef LIBMESH_HAVE_METAPHYSICL
+#include "metaphysicl/dualnumber_decl.h"
+#endif
+
+namespace libMesh
+{
+// Forward declarations
+template <typename T> class TypeVector;
+template <typename T> class VectorValue;
+template <typename T> class TypeTensor;
+template <typename T> class TensorValue;
+template <unsigned int N, typename T> class TypeNTensor;
+
+namespace TensorTools
+{
+// Any tensor-rank-independent code will need to include
+// tensor_tools.h, so we define a product/dot-product here, starting
+// with the generic case to apply to scalars.
+// Vector specializations will follow.
+
+template <typename T, typename T2>
+inline
+typename boostcopy::enable_if_c<ScalarTraits<T>::value && ScalarTraits<T2>::value,
+                                typename CompareTypes<T, T2>::supertype>::type
+inner_product(const T & a, const T2& b)
+{ return a * b; }
+
+template <typename T, typename T2>
+inline
+typename CompareTypes<T, T2>::supertype
+inner_product(const TypeVector<T> & a, const TypeVector<T2> & b)
+{ return a * b; }
+
+template <typename T, typename T2>
+inline
+typename CompareTypes<T, T2>::supertype
+inner_product(const TypeTensor<T> & a, const TypeTensor<T2> & b)
+{ return a.contract(b); }
+
+template <unsigned int N, typename T, typename T2>
+inline
+typename CompareTypes<T, T2>::supertype
+inner_product(const TypeNTensor<N,T> & a, const TypeNTensor<N,T2> & b)
+{ return a.contract(b); }
+
+template<typename T>
+inline
+auto norm(const T & a) -> decltype(std::abs(a))
+{ return std::abs(a); }
+
+template<typename T>
+inline
+T norm(std::complex<T> a) { return std::abs(a); }
+
+template <typename T>
+inline
+auto norm(const TypeVector<T> & a) -> decltype(TensorTools::norm(T()))
+{return std::sqrt(a.norm_sq());}
+
+template <typename T>
+inline
+auto norm(const VectorValue<T> & a) -> decltype(TensorTools::norm(T()))
+{return std::sqrt(a.norm_sq());}
+
+template <typename T>
+inline
+auto norm(const TypeTensor<T> & a) -> decltype(TensorTools::norm(T()))
+{return std::sqrt(a.norm_sq());}
+
+template <typename T>
+inline
+auto norm(const TensorValue<T> & a) -> decltype(TensorTools::norm(T()))
+{return std::sqrt(a.norm_sq());}
+
+
+template<typename T>
+inline
+auto norm_sq(const T & a) -> decltype(std::norm(a))
+{ return std::norm(a); }
+
+template<typename T>
+inline
+T norm_sq(std::complex<T> a) { return std::norm(a); }
+
+template <typename T>
+inline
+auto norm_sq(const TypeVector<T> & a) -> decltype(std::norm(T()))
+{return a.norm_sq();}
+
+template <typename T>
+inline
+auto norm_sq(const VectorValue<T> & a) -> decltype(std::norm(T()))
+{return a.norm_sq();}
+
+template <typename T>
+inline
+auto norm_sq(const TypeTensor<T> & a) -> decltype(std::norm(T()))
+{return a.norm_sq();}
+
+template <typename T>
+inline
+auto norm_sq(const TensorValue<T> & a) -> decltype(std::norm(T()))
+{return a.norm_sq();}
+
+
+template<typename T>
+inline
+bool is_zero(const T & a){ return a.is_zero();}
+
+// Any tensor-rank-independent code will need to include
+// tensor_tools.h, so we define rank-increasing and real-to-number type
+// conversion functions here, starting with the generic case to apply
+// to scalars.
+// Tensor(and higher?) specializations will go in the tensor
+// header(s).
+template <typename T>
+struct IncrementRank
+{
+  typedef VectorValue<T> type;
+};
+
+template <typename T>
+struct IncrementRank<VectorValue<T>>
+{
+  typedef TensorValue<T> type;
+};
+
+
+template <typename T>
+struct IncrementRank<TypeVector<T>>
+{
+  typedef TensorValue<T> type;
+};
+
+template <typename T>
+struct IncrementRank<TypeTensor<T>>
+{
+  typedef TypeNTensor<3,T> type;
+};
+
+
+template <typename T>
+struct IncrementRank<TensorValue<T>>
+{
+  typedef TypeNTensor<3,T> type;
+};
+
+template <unsigned int N, typename T>
+struct IncrementRank<TypeNTensor<N,T>>
+{
+  typedef TypeNTensor<N+1,T> type;
+};
+
+
+// Also need rank-decreasing case
+template <typename T>
+struct DecrementRank
+{
+  // The default case is typically an error, but for simpler
+  // templated code we need it to be compatible with Number
+  // operations...
+  typedef T type;
+};
+
+template <typename T>
+struct DecrementRank<VectorValue<T>>
+{
+  typedef T type;
+};
+
+template <typename T>
+struct DecrementRank<TypeVector<T>>
+{
+  typedef T type;
+};
+
+template <typename T>
+struct DecrementRank<TensorValue<T>>
+{
+  typedef VectorValue<T> type;
+};
+
+template <typename T>
+struct DecrementRank<TypeTensor<T>>
+{
+  typedef VectorValue<T> type;
+};
+
+template <unsigned int N, typename T>
+struct DecrementRank<TypeNTensor<N,T>>
+{
+  typedef TypeNTensor<N-1,T> type;
+};
+
+// Handle the complex-valued case
+template <typename T>
+struct MakeNumber
+{
+#ifdef LIBMESH_USE_COMPLEX_NUMBERS
+  typedef std::complex<T> type;
+#else
+  typedef T type;
+#endif
+};
+
+template <typename T>
+struct MakeNumber<std::complex<T>>
+{
+  // Should this be a compile-time error? we shouldn't need to make numbers out of
+  // numbers, but then again having the typedef below enables more generic
+  // programming
+  typedef std::complex<T> type;
+};
+
+
+template <typename T>
+struct MakeNumber<TypeVector<T>>
+{
+  typedef TypeVector<typename MakeNumber<T>::type > type;
+};
+
+template <typename T>
+struct MakeNumber<VectorValue<T>>
+{
+  typedef VectorValue<typename MakeNumber<T>::type > type;
+};
+
+template <typename T>
+struct MakeNumber<TypeTensor<T>>
+{
+  typedef TypeTensor<typename MakeNumber<T>::type> type;
+};
+
+template <typename T>
+struct MakeNumber<TensorValue<T>>
+{
+  typedef TypeTensor<typename MakeNumber<T>::type> type;
+};
+
+template <unsigned int N, typename T>
+struct MakeNumber<TypeNTensor<N,T>>
+{
+#ifdef LIBMESH_USE_COMPLEX_NUMBERS
+  typedef TypeNTensor<N,std::complex<T>> type;
+#else
+  typedef TypeNTensor<N,T> type;
+#endif
+};
+
+// A utility for determining real-valued (e.g. shape function)
+// types from corresponding complex-valued types
+template <typename T>
+struct MakeReal
+{
+  typedef T type;
+};
+
+template <typename T>
+struct MakeReal<std::complex<T>>
+{
+  typedef T type;
+};
+
+template <typename T>
+struct MakeReal<TypeVector<T>>
+{
+  typedef TypeVector<typename MakeReal<T>::type > type;
+};
+
+template <typename T>
+struct MakeReal<VectorValue<T>>
+{
+  typedef VectorValue<typename MakeReal<T>::type > type;
+};
+
+template <typename T>
+struct MakeReal<TypeTensor<T>>
+{
+  typedef TypeTensor<typename MakeReal<T>::type> type;
+};
+
+template <typename T>
+struct MakeReal<TensorValue<T>>
+{
+  typedef TypeTensor<typename MakeReal<T>::type> type;
+};
+
+template <unsigned int N, typename T>
+struct MakeReal<TypeNTensor<N,T>>
+{
+  typedef TypeNTensor<N,typename MakeReal<T>::type> type;
+};
+
+// Needed for ExactSolution to compile
+Number curl_from_grad( const VectorValue<Number> & );
+
+//! Computes the curl of a vector given the gradient of that vector
+VectorValue<Number> curl_from_grad( const TensorValue<Number> & grad );
+
+/*! Place holder needed for ExactSolution to compile. Will compute the
+  curl of a tensor given the gradient of that tensor. */
+TensorValue<Number> curl_from_grad( const TypeNTensor<3,Number> & grad );
+
+//! Dummy. Divergence of a scalar not defined, but is needed for ExactSolution to compile
+Number div_from_grad( const VectorValue<Number> & grad );
+
+//! Computes the divergence of a vector given the gradient of that vector
+Number div_from_grad( const TensorValue<Number> & grad );
+
+/*! Place holder needed for ExactSolution to compile. Will compute the
+  divergence of a tensor given the gradient of that tensor. */
+VectorValue<Number> div_from_grad( const TypeNTensor<3,Number> & grad );
+
+/**
+ * This helper structure is used to determine whether a template class is one of
+ * our mathematical structures, like TypeVector, TypeTensor and their descendents
+ */
+template <typename T>
+struct MathWrapperTraits
+{
+  static constexpr bool value = false;
+};
+
+template <typename T>
+struct MathWrapperTraits<TypeVector<T>>
+{
+  static constexpr bool value = true;
+};
+
+template <typename T>
+struct MathWrapperTraits<VectorValue<T>>
+{
+  static constexpr bool value = true;
+};
+
+template <typename T>
+struct MathWrapperTraits<TypeTensor<T>>
+{
+  static constexpr bool value = true;
+};
+
+template <typename T>
+struct MathWrapperTraits<TensorValue<T>>
+{
+  static constexpr bool value = true;
+};
+
+template <unsigned int N, typename T>
+struct MathWrapperTraits<TypeNTensor<N,T>>
+{
+  static constexpr bool value = true;
+};
+
+template <typename T, typename enable = void> struct MakeBaseNumber {};
+
+template <typename T>
+struct MakeBaseNumber<T, typename std::enable_if<ScalarTraits<T>::value>::type> {
+  typedef typename MakeNumber<T>::type type;
+};
+
+template <template <typename> class Wrapper, typename T>
+struct MakeBaseNumber<
+    Wrapper<T>,
+    typename std::enable_if<MathWrapperTraits<Wrapper<T>>::value>::type> {
+  typedef typename MakeBaseNumber<T>::type type;
+};
+
+template <typename T, typename Enable = void>
+struct TensorTraits
+{
+  static_assert(always_false<T>,
+                "Instantiating the generic template of TensorTraits. You must specialize "
+                "TensorTraits for your type.");
+  static constexpr unsigned char rank = 0;
+};
+
+template <typename T>
+struct TensorTraits<T, typename std::enable_if<ScalarTraits<T>::value>::type>
+{
+  static constexpr unsigned char rank = 0;
+};
+
+template <typename T>
+struct TensorTraits<TypeVector<T>>
+{
+  static constexpr unsigned char rank = 1;
+};
+
+template <typename T>
+struct TensorTraits<VectorValue<T>>
+{
+  static constexpr unsigned char rank = 1;
+};
+
+template <typename T>
+struct TensorTraits<TypeTensor<T>>
+{
+  static constexpr unsigned char rank = 2;
+};
+
+template <typename T>
+struct TensorTraits<TensorValue<T>>
+{
+  static constexpr unsigned char rank = 2;
+};
+
+template <typename T, unsigned int N>
+struct TensorTraits<TypeNTensor<N, T>>
+{
+  static constexpr unsigned char rank = static_cast<unsigned char>(N);
+};
+
+}//namespace TensorTools
+
+}//namespace libMesh
+
+#endif // LIBMESH_TENSOR_TOOLS_H

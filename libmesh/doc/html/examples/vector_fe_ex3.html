@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en-US">
+<head>
+  <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+  <title>libMesh - A C++ Finite Element Library</title>
+  <meta name="author" content="libMesh development team">
+  <link rel="stylesheet" type="text/css" media="all" href="../styles.css">
+  <link rel="stylesheet" type="text/css" media="all" href="../doxygen_stylesheet.css">
+</head>
+
+<body>
+  <nav id="fixedbar">
+    <ul id="fixednav">
+      <li><a href="../index.html">Home</a></li>
+      <li><a href="../support.html">About Us</a></li>
+      <li><a href="../publications.html">Publications</a></li>
+      <li><a href="https://github.com/libMesh/libmesh/graphs/contributors">Developers</a></li>
+      <li><a href="../installation.html">Installation</a></li>
+      <li><a href="../examples.html">Examples</a></li>
+     <li><a href="https://mooseframework.inl.gov/docs/doxygen/libmesh/index.html">Documentation</a></li>
+    </ul>
+  </nav>
+
+  <div id="w">
+    <header id="logo"><a href="../index.html"><span id="logobg">SomeWebsiteLogo</span></a></header>
+
+    <nav id="navigation">
+      <ul>
+        <li><a href="../index.html">Home</a></li>
+        <li><a href="../support.html">About Us</a></li>
+        <li><a href="../publications.html">Publications</a></li>
+        <li><a href="https://github.com/libMesh/libmesh/graphs/contributors">Developers</a></li>
+        <li><a href="../installation.html">Installation</a></li>
+        <li><a href="../examples.html">Examples</a></li>
+        <li><a href="https://mooseframework.inl.gov/docs/doxygen/libmesh/index.html">Documentation</a></li>
+      </ul>
+    </nav>
+
+<div id="content">
+
+<br> <h1> Link to the source code for this example: </h1>
+<a href="https://github.com/libMesh/libmesh/tree/master/examples/vector_fe/vector_fe_ex3" target="_blank">Open vector_fe_ex3 in new tab.</a>
+<a name="output"></a>
+<br><br><br> <h1> The console output of the program: </h1>
+<pre>
+***************************************************************
+* Running Example vector_fe_ex3:
+*   ./example-opt element_type=TRI6 -pc_type lu
+***************************************************************
+
+ Mesh Information:
+  elem_dimensions()={2}
+  spatial_dimension()=2
+  n_nodes()=1681
+    n_local_nodes()=1681
+  n_elem()=800
+    n_local_elem()=800
+    n_active_elem()=800
+  n_subdomains()=1
+  n_elemsets()=0
+  n_partitions()=1
+  n_processors()=1
+  n_threads()=1
+  processor_id()=0
+  is_prepared()=true
+  is_replicated()=true
+
+ EquationSystems
+  n_systems()=1
+   System #0, "CurlCurl"
+    Type "Implicit"
+    Variables="u"
+    Finite Element Types="NEDELEC_ONE"
+    Approximation Orders="FIRST"
+    n_dofs()=1240
+    n_local_dofs()=1240
+    max(n_local_dofs())=1240
+    n_constrained_dofs()=0
+    n_local_constrained_dofs()=0
+    max(local unconstrained dofs)=1240
+    n_vectors()=1
+    n_matrices()=1
+    DofMap Sparsity
+      Average  On-Processor Bandwidth <= 4.87097
+      Average Off-Processor Bandwidth <= 0
+      Maximum  On-Processor Bandwidth <= 5
+      Maximum Off-Processor Bandwidth <= 0
+    DofMap Constraints
+      Number of DoF Constraints = 0
+
+Assembling the System
+Nonlinear Residual: 23.6078
+Linear solve starting, tolerance 1e-12
+Linear solve finished, step 1, residual 1.0869e-13
+Trying full Newton step
+  Current Residual: 1.5625e-13
+  Nonlinear solver converged, step 0, residual reduction 6.61855e-15 < 1e-06
+  Nonlinear solver relative step size inf > 1e-06
+L2-Error is: 0.128366
+HCurl semi-norm error is: 0.655952
+HCurl-Error is: 0.668394
+
+***************************************************************
+* Done Running Example vector_fe_ex3:
+*   ./example-opt element_type=TRI6 -pc_type lu
+***************************************************************
+***************************************************************
+* Running Example vector_fe_ex3:
+*   ./example-opt element_type=TRI7 -pc_type lu
+***************************************************************
+
+ Mesh Information:
+  elem_dimensions()={2}
+  spatial_dimension()=2
+  n_nodes()=2481
+    n_local_nodes()=2481
+  n_elem()=800
+    n_local_elem()=800
+    n_active_elem()=800
+  n_subdomains()=1
+  n_elemsets()=0
+  n_partitions()=1
+  n_processors()=1
+  n_threads()=1
+  processor_id()=0
+  is_prepared()=true
+  is_replicated()=true
+
+ EquationSystems
+  n_systems()=1
+   System #0, "CurlCurl"
+    Type "Implicit"
+    Variables="u"
+    Finite Element Types="NEDELEC_ONE"
+    Approximation Orders="FIRST"
+    n_dofs()=1240
+    n_local_dofs()=1240
+    max(n_local_dofs())=1240
+    n_constrained_dofs()=0
+    n_local_constrained_dofs()=0
+    max(local unconstrained dofs)=1240
+    n_vectors()=1
+    n_matrices()=1
+    DofMap Sparsity
+      Average  On-Processor Bandwidth <= 4.87097
+      Average Off-Processor Bandwidth <= 0
+      Maximum  On-Processor Bandwidth <= 5
+      Maximum Off-Processor Bandwidth <= 0
+    DofMap Constraints
+      Number of DoF Constraints = 0
+
+Assembling the System
+Nonlinear Residual: 23.6078
+Linear solve starting, tolerance 1e-12
+Linear solve finished, step 1, residual 1.07153e-13
+Trying full Newton step
+  Current Residual: 1.57019e-13
+  Nonlinear solver converged, step 0, residual reduction 6.65114e-15 < 1e-06
+  Nonlinear solver relative step size inf > 1e-06
+L2-Error is: 0.128366
+HCurl semi-norm error is: 0.655952
+HCurl-Error is: 0.668394
+
+***************************************************************
+* Done Running Example vector_fe_ex3:
+*   ./example-opt element_type=TRI7 -pc_type lu
+***************************************************************
+***************************************************************
+* Running Example vector_fe_ex3:
+*   ./example-opt element_type=QUAD8 -pc_type lu
+***************************************************************
+
+ Mesh Information:
+  elem_dimensions()={2}
+  spatial_dimension()=2
+  n_nodes()=1281
+    n_local_nodes()=1281
+  n_elem()=400
+    n_local_elem()=400
+    n_active_elem()=400
+  n_subdomains()=1
+  n_elemsets()=0
+  n_partitions()=1
+  n_processors()=1
+  n_threads()=1
+  processor_id()=0
+  is_prepared()=true
+  is_replicated()=true
+
+ EquationSystems
+  n_systems()=1
+   System #0, "CurlCurl"
+    Type "Implicit"
+    Variables="u"
+    Finite Element Types="NEDELEC_ONE"
+    Approximation Orders="FIRST"
+    n_dofs()=840
+    n_local_dofs()=840
+    max(n_local_dofs())=840
+    n_constrained_dofs()=0
+    n_local_constrained_dofs()=0
+    max(local unconstrained dofs)=840
+    n_vectors()=1
+    n_matrices()=1
+    DofMap Sparsity
+      Average  On-Processor Bandwidth <= 6.71429
+      Average Off-Processor Bandwidth <= 0
+      Maximum  On-Processor Bandwidth <= 7
+      Maximum Off-Processor Bandwidth <= 0
+    DofMap Constraints
+      Number of DoF Constraints = 0
+
+Assembling the System
+Nonlinear Residual: 28.9779
+Linear solve starting, tolerance 1e-12
+Linear solve finished, step 1, residual 3.95978e-14
+Trying full Newton step
+  Current Residual: 7.02729e-14
+  Nonlinear solver converged, step 0, residual reduction 2.42505e-15 < 1e-06
+  Nonlinear solver relative step size inf > 1e-06
+L2-Error is: 0.12862
+HCurl semi-norm error is: 0.802879
+HCurl-Error is: 0.813116
+
+***************************************************************
+* Done Running Example vector_fe_ex3:
+*   ./example-opt element_type=QUAD8 -pc_type lu
+***************************************************************
+***************************************************************
+* Running Example vector_fe_ex3:
+*   ./example-opt element_type=QUAD9 -pc_type lu
+***************************************************************
+
+ Mesh Information:
+  elem_dimensions()={2}
+  spatial_dimension()=2
+  n_nodes()=1681
+    n_local_nodes()=1681
+  n_elem()=400
+    n_local_elem()=400
+    n_active_elem()=400
+  n_subdomains()=1
+  n_elemsets()=0
+  n_partitions()=1
+  n_processors()=1
+  n_threads()=1
+  processor_id()=0
+  is_prepared()=true
+  is_replicated()=true
+
+ EquationSystems
+  n_systems()=1
+   System #0, "CurlCurl"
+    Type "Implicit"
+    Variables="u"
+    Finite Element Types="NEDELEC_ONE"
+    Approximation Orders="FIRST"
+    n_dofs()=840
+    n_local_dofs()=840
+    max(n_local_dofs())=840
+    n_constrained_dofs()=0
+    n_local_constrained_dofs()=0
+    max(local unconstrained dofs)=840
+    n_vectors()=1
+    n_matrices()=1
+    DofMap Sparsity
+      Average  On-Processor Bandwidth <= 6.71429
+      Average Off-Processor Bandwidth <= 0
+      Maximum  On-Processor Bandwidth <= 7
+      Maximum Off-Processor Bandwidth <= 0
+    DofMap Constraints
+      Number of DoF Constraints = 0
+
+Assembling the System
+Nonlinear Residual: 28.9779
+Linear solve starting, tolerance 1e-12
+Linear solve finished, step 1, residual 3.99601e-14
+Trying full Newton step
+  Current Residual: 7.14395e-14
+  Nonlinear solver converged, step 0, residual reduction 2.46531e-15 < 1e-06
+  Nonlinear solver relative step size inf > 1e-06
+L2-Error is: 0.12862
+HCurl semi-norm error is: 0.802879
+HCurl-Error is: 0.813116
+
+***************************************************************
+* Done Running Example vector_fe_ex3:
+*   ./example-opt element_type=QUAD9 -pc_type lu
+***************************************************************
+***************************************************************
+* Running Example vector_fe_ex3:
+*   ./example-opt order=2 element_type=TRI6 -pc_type lu
+***************************************************************
+
+ Mesh Information:
+  elem_dimensions()={2}
+  spatial_dimension()=2
+  n_nodes()=1681
+    n_local_nodes()=1681
+  n_elem()=800
+    n_local_elem()=800
+    n_active_elem()=800
+  n_subdomains()=1
+  n_elemsets()=0
+  n_partitions()=1
+  n_processors()=1
+  n_threads()=1
+  processor_id()=0
+  is_prepared()=true
+  is_replicated()=true
+
+ EquationSystems
+  n_systems()=1
+   System #0, "CurlCurl"
+    Type "Implicit"
+    Variables="u"
+    Finite Element Types="NEDELEC_ONE"
+    Approximation Orders="SECOND"
+    n_dofs()=4080
+    n_local_dofs()=4080
+    max(n_local_dofs())=4080
+    n_constrained_dofs()=0
+    n_local_constrained_dofs()=0
+    max(local unconstrained dofs)=4080
+    n_vectors()=1
+    n_matrices()=1
+    DofMap Sparsity
+      Average  On-Processor Bandwidth <= 11.4118
+      Average Off-Processor Bandwidth <= 0
+      Maximum  On-Processor Bandwidth <= 14
+      Maximum Off-Processor Bandwidth <= 0
+    DofMap Constraints
+      Number of DoF Constraints = 0
+
+Assembling the System
+Nonlinear Residual: 47.591
+Linear solve starting, tolerance 1e-12
+Linear solve finished, step 1, residual 7.29357e-13
+Trying full Newton step
+  Current Residual: 1.77284e-12
+  Nonlinear solver converged, step 0, residual reduction 3.72517e-14 < 1e-06
+  Nonlinear solver relative step size inf > 1e-06
+L2-Error is: 0.00575821
+HCurl semi-norm error is: 0.0398913
+HCurl-Error is: 0.0403047
+
+***************************************************************
+* Done Running Example vector_fe_ex3:
+*   ./example-opt order=2 element_type=TRI6 -pc_type lu
+***************************************************************
+***************************************************************
+* Running Example vector_fe_ex3:
+*   ./example-opt order=2 element_type=TRI7 -pc_type lu
+***************************************************************
+
+ Mesh Information:
+  elem_dimensions()={2}
+  spatial_dimension()=2
+  n_nodes()=2481
+    n_local_nodes()=2481
+  n_elem()=800
+    n_local_elem()=800
+    n_active_elem()=800
+  n_subdomains()=1
+  n_elemsets()=0
+  n_partitions()=1
+  n_processors()=1
+  n_threads()=1
+  processor_id()=0
+  is_prepared()=true
+  is_replicated()=true
+
+ EquationSystems
+  n_systems()=1
+   System #0, "CurlCurl"
+    Type "Implicit"
+    Variables="u"
+    Finite Element Types="NEDELEC_ONE"
+    Approximation Orders="SECOND"
+    n_dofs()=4080
+    n_local_dofs()=4080
+    max(n_local_dofs())=4080
+    n_constrained_dofs()=0
+    n_local_constrained_dofs()=0
+    max(local unconstrained dofs)=4080
+    n_vectors()=1
+    n_matrices()=1
+    DofMap Sparsity
+      Average  On-Processor Bandwidth <= 11.4118
+      Average Off-Processor Bandwidth <= 0
+      Maximum  On-Processor Bandwidth <= 14
+      Maximum Off-Processor Bandwidth <= 0
+    DofMap Constraints
+      Number of DoF Constraints = 0
+
+Assembling the System
+Nonlinear Residual: 47.591
+Linear solve starting, tolerance 1e-12
+Linear solve finished, step 1, residual 6.88575e-13
+Trying full Newton step
+  Current Residual: 1.77577e-12
+  Nonlinear solver converged, step 0, residual reduction 3.73131e-14 < 1e-06
+  Nonlinear solver relative step size inf > 1e-06
+L2-Error is: 0.00575821
+HCurl semi-norm error is: 0.0398913
+HCurl-Error is: 0.0403047
+
+***************************************************************
+* Done Running Example vector_fe_ex3:
+*   ./example-opt order=2 element_type=TRI7 -pc_type lu
+***************************************************************
+***************************************************************
+* Running Example vector_fe_ex3:
+*   ./example-opt order=2 element_type=QUAD8 -pc_type lu
+***************************************************************
+
+ Mesh Information:
+  elem_dimensions()={2}
+  spatial_dimension()=2
+  n_nodes()=1281
+    n_local_nodes()=1281
+  n_elem()=400
+    n_local_elem()=400
+    n_active_elem()=400
+  n_subdomains()=1
+  n_elemsets()=0
+  n_partitions()=1
+  n_processors()=1
+  n_threads()=1
+  processor_id()=0
+  is_prepared()=true
+  is_replicated()=true
+
+ EquationSystems
+  n_systems()=1
+   System #0, "CurlCurl"
+    Type "Implicit"
+    Variables="u"
+    Finite Element Types="NEDELEC_ONE"
+    Approximation Orders="SECOND"
+    n_dofs()=3280
+    n_local_dofs()=3280
+    max(n_local_dofs())=3280
+    n_constrained_dofs()=0
+    n_local_constrained_dofs()=0
+    max(local unconstrained dofs)=3280
+    n_vectors()=1
+    n_matrices()=1
+    DofMap Sparsity
+      Average  On-Processor Bandwidth <= 16.6341
+      Average Off-Processor Bandwidth <= 0
+      Maximum  On-Processor Bandwidth <= 22
+      Maximum Off-Processor Bandwidth <= 0
+    DofMap Constraints
+      Number of DoF Constraints = 0
+
+Assembling the System
+Nonlinear Residual: 20.864
+Linear solve starting, tolerance 1e-12
+Linear solve finished, step 1, residual 6.17245e-13
+Trying full Newton step
+  Current Residual: 1.26787e-12
+  Nonlinear solver converged, step 0, residual reduction 6.07684e-14 < 1e-06
+  Nonlinear solver relative step size inf > 1e-06
+L2-Error is: 0.00520051
+HCurl semi-norm error is: 0.0326373
+HCurl-Error is: 0.0330491
+
+***************************************************************
+* Done Running Example vector_fe_ex3:
+*   ./example-opt order=2 element_type=QUAD8 -pc_type lu
+***************************************************************
+***************************************************************
+* Running Example vector_fe_ex3:
+*   ./example-opt order=2 element_type=QUAD9 -pc_type lu
+***************************************************************
+
+ Mesh Information:
+  elem_dimensions()={2}
+  spatial_dimension()=2
+  n_nodes()=1681
+    n_local_nodes()=1681
+  n_elem()=400
+    n_local_elem()=400
+    n_active_elem()=400
+  n_subdomains()=1
+  n_elemsets()=0
+  n_partitions()=1
+  n_processors()=1
+  n_threads()=1
+  processor_id()=0
+  is_prepared()=true
+  is_replicated()=true
+
+ EquationSystems
+  n_systems()=1
+   System #0, "CurlCurl"
+    Type "Implicit"
+    Variables="u"
+    Finite Element Types="NEDELEC_ONE"
+    Approximation Orders="SECOND"
+    n_dofs()=3280
+    n_local_dofs()=3280
+    max(n_local_dofs())=3280
+    n_constrained_dofs()=0
+    n_local_constrained_dofs()=0
+    max(local unconstrained dofs)=3280
+    n_vectors()=1
+    n_matrices()=1
+    DofMap Sparsity
+      Average  On-Processor Bandwidth <= 16.6341
+      Average Off-Processor Bandwidth <= 0
+      Maximum  On-Processor Bandwidth <= 22
+      Maximum Off-Processor Bandwidth <= 0
+    DofMap Constraints
+      Number of DoF Constraints = 0
+
+Assembling the System
+Nonlinear Residual: 20.864
+Linear solve starting, tolerance 1e-12
+Linear solve finished, step 1, residual 6.17982e-13
+Trying full Newton step
+  Current Residual: 1.30813e-12
+  Nonlinear solver converged, step 0, residual reduction 6.2698e-14 < 1e-06
+  Nonlinear solver relative step size inf > 1e-06
+L2-Error is: 0.00520051
+HCurl semi-norm error is: 0.0326373
+HCurl-Error is: 0.0330491
+
+***************************************************************
+* Done Running Example vector_fe_ex3:
+*   ./example-opt order=2 element_type=QUAD9 -pc_type lu
+***************************************************************
+</pre>
+</div>
+
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){
+  $(window).on('scroll',function() {
+    var scrolltop = $(this).scrollTop();
+
+    if(scrolltop >= 215) {
+      $('#fixedbar').fadeIn(250);
+    }
+
+    else if(scrolltop <= 210) {
+      $('#fixedbar').fadeOut(250);
+    }
+  });
+});
+</script>
+
+<!-- Google Analytics stuff -->
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-24978333-1']);
+  _gaq.push(['_trackPageview']);
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+</script>
+
+</body>
+</html>

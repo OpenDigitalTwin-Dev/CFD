@@ -1,0 +1,294 @@
+// The libMesh Finite Element Library.
+// Copyright (C) 2002-2024 Benjamin S. Kirk, John W. Peterson, Roy H. Stogner
+
+// This library is free software; you can redistribute it and/or
+// modify it under the terms of the GNU Lesser General Public
+// License as published by the Free Software Foundation; either
+// version 2.1 of the License, or (at your option) any later version.
+
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+// Lesser General Public License for more details.
+
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+
+
+#ifndef LIBMESH_FACE_INF_QUAD_H
+#define LIBMESH_FACE_INF_QUAD_H
+
+#include "libmesh/libmesh_config.h"
+
+#ifdef LIBMESH_ENABLE_INFINITE_ELEMENTS
+
+// Local includes
+#include "libmesh/elem.h"
+
+namespace libMesh
+{
+
+/**
+ * The \p InfQuad is an abstract element type that lives in two
+ * dimensions.  Here, an infinite face is always a quadrilateral,
+ * so this class is directly derived from \p Elem, without an
+ * intermediate \p InfFace class.
+ *
+ * It looks like this:
+ * \verbatim
+ *                                   closer to infinity
+ *          |           |
+ *          |           |
+ *   side 2 |           | side 1
+ *          |           |
+ *          |           |
+ *           -----------             base side
+ *
+ *             side 0
+ * \endverbatim
+ *
+ * \author Daniel Dreyer
+ * \date 2003
+ * \brief The base class for all 2D infinite quadrilateral element types.
+ */
+class InfQuad : public Elem
+{
+public:
+
+  /**
+   * Constructor.  Derived classes implement 'true' elements.
+   */
+  explicit
+  InfQuad (const unsigned int nn,
+           Elem * p,
+           Node ** nodelinkdata) :
+    Elem(nn, num_sides, p, _elemlinks_data, nodelinkdata)
+  {
+    // Make sure the interior parent isn't undefined
+    if (LIBMESH_DIM > 2)
+      this->set_interior_parent(nullptr);
+  }
+
+  InfQuad (InfQuad &&) = delete;
+  InfQuad (const InfQuad &) = delete;
+  InfQuad & operator= (const InfQuad &) = delete;
+  InfQuad & operator= (InfQuad &&) = delete;
+  virtual ~InfQuad() = default;
+
+  /**
+   * \returns The \p Point associated with local \p Node \p i,
+   * in master element rather than physical coordinates.
+   */
+  virtual Point master_point (const unsigned int i) const override final
+  {
+    libmesh_assert_less(i, this->n_nodes());
+    return Point(_master_points[i][0],
+                 _master_points[i][1],
+                 _master_points[i][2]);
+  }
+
+  /**
+   * Geometric constants for all InfQuads.
+   */
+  static const int num_sides = 3;
+  static const int num_children = 2;
+
+  /**
+   * \returns 2, the dimensionality of the object.
+   */
+  virtual unsigned short dim() const override final { return 2; }
+
+  /**
+   * \returns 3.  Infinite faces have one side less
+   * than their conventional counterparts, since one
+   * side is supposed to be located at infinity.
+   */
+  virtual unsigned int n_sides() const override final { return 3; }
+
+  /**
+   * \returns 4.  All infinite quads (in our setting) have 4 vertices.
+   */
+  virtual unsigned int n_vertices() const override final { return 4; }
+
+  /**
+   * \returns 3.  All infinite quads have 1 edge in the
+   * base, and 2 perpendicular to the base.
+   */
+  virtual unsigned int n_edges() const override final { return 3; }
+
+  /**
+   * \returns 0.  All 2D elements have no faces, just edges.
+   */
+  virtual unsigned int n_faces() const override final { return 0; }
+
+  /**
+   * \returns 2.
+   */
+  virtual unsigned int n_children() const override final { return 2; }
+
+  /**
+   * We number vertices first.
+   */
+  virtual bool is_vertex(const unsigned int i) const override final { return (i < 4); }
+
+  /**
+   * We number edges next.
+   */
+  virtual bool is_edge(const unsigned int i) const override final { return (i >= 4 && i < 5); }
+
+  /**
+   * We number faces last.
+   */
+  virtual bool is_face(const unsigned int i) const override final { return (i >= 5); }
+
+  /**
+   * \returns \p true if the specified (local) node number is a
+   * "mid-edge" node on an infinite element edge.
+   */
+  virtual bool is_mid_infinite_edge_node(const unsigned int i) const
+    override final { return (i > 2 && i < 4); }
+
+  /**
+   * \returns \p true if the specified child is on the specified side.
+   */
+  virtual bool is_child_on_side(const unsigned int c,
+                                const unsigned int s) const override final;
+
+  /**
+   * Don't hide Elem::key() defined in the base class.
+   */
+  using Elem::key;
+
+  /**
+   * \returns An id associated with the \p s side of this element.
+   * The id is not necessarily unique, but should be close.
+   */
+  virtual dof_id_type key (const unsigned int s) const override;
+
+  /**
+   * \returns An id associated with the \p s side of this element, as
+   * defined solely by element vertices.  The id is not necessarily
+   * unique, but should be close.  This is particularly useful in the
+   * \p MeshBase::find_neighbors() routine.
+   */
+  virtual dof_id_type low_order_key (const unsigned int s) const override;
+
+  /**
+   * \returns \p InfQuad4::side_nodes_map[side][side_node] after doing some range checking.
+   */
+  virtual unsigned int local_side_node(unsigned int side,
+                                       unsigned int side_node) const override;
+
+  /**
+   * Calls local_side_node(edge, edge_node). For 2D elements, there is an implied
+   * equivalence between edges and sides, e.g. n_edges() == n_sides(), so we treat
+   * these two functions the same.
+   */
+  virtual unsigned int local_edge_node(unsigned int edge,
+                                       unsigned int edge_node) const override;
+
+  /**
+   * \returns A primitive (2-noded) edge or infedge for edge \p i.
+   */
+  virtual std::unique_ptr<Elem> side_ptr (const unsigned int i) override final;
+
+  /**
+   * Rebuilds a primitive (2-noded) edge or infedge for edge \p i.
+   */
+  virtual void side_ptr (std::unique_ptr<Elem> & side, const unsigned int i) override final;
+
+  /**
+   * build_edge_ptr() and build_side_ptr() are identical in 2D.
+   */
+  virtual std::unique_ptr<Elem> build_edge_ptr (const unsigned int i) override final
+  { return build_side_ptr(i); }
+
+  /**
+   * side and edge are identical for faces.
+   */
+  virtual void build_edge_ptr (std::unique_ptr<Elem> & edge, const unsigned int i) override final
+  { build_side_ptr(edge, i); }
+
+  /**
+   * is_edge_on_side is trivial in 2D.
+   */
+  virtual bool is_edge_on_side(const unsigned int e,
+                               const unsigned int s) const override final
+  { return (e == s); }
+
+  /**
+   * sides_on_edge is trivial in 2D.
+   */
+  virtual std::vector<unsigned int> sides_on_edge(const unsigned int e) const override final
+  { return {e}; }
+
+  /**
+   * \returns A quantitative assessment of element quality based on
+   * the quality metric \p q specified by the user.
+   */
+  virtual Real quality (const ElemQuality q) const override;
+
+  /**
+   * \returns The suggested quality bounds for
+   * the hex based on quality measure q.  These are
+   * the values suggested by the CUBIT User's Manual.
+   */
+  virtual std::pair<Real, Real> qual_bounds (const ElemQuality q) const override;
+
+  /**
+   * \returns \p true.  All classes derived from \p InfQuad
+   * are infinite elements.
+   */
+  virtual bool infinite () const override final { return true; }
+
+  /**
+   * \returns The origin of this infinite element.
+   */
+  virtual Point origin () const override final
+  {
+    return ( this->point(0)*2 - this->point(this->n_vertices()/2) );
+  }
+
+  /**
+   * One non-infinite side; any orientation change flips the mapping
+   * Jacobian negative.
+   */
+  virtual unsigned int n_permutations() const override final { return 0; }
+
+  virtual void permute(unsigned int) override final { libmesh_error(); }
+
+  virtual bool is_flipped() const override final;
+
+  virtual std::vector<unsigned int> edges_adjacent_to_node(const unsigned int n) const override;
+
+protected:
+
+  /**
+   * Data for links to parent/neighbor/interior_parent elements.
+   */
+  Elem * _elemlinks_data[4+(LIBMESH_DIM>2)];
+
+  /**
+   * Master element node locations
+   */
+  static const Real _master_points[6][3];
+
+  /**
+   * This maps the \f$ j^{th} \f$ node to the one or two side id(s)
+   * adjacent to the node. The side numbering matches the one used in
+   * the derived classes' side_nodes_map. A side index of 99 is used
+   * to indicate that there is no adjacent side. This data structure
+   * is used in the InfQuad::edges_adjacent_to_node() override and is
+   * shared by all the derived Quad types.
+   */
+  static const unsigned int adjacent_sides_map[/*num_vertices*/4][/*max_adjacent_sides*/2];
+};
+
+} // namespace libMesh
+
+
+#endif // ifdef LIBMESH_ENABLE_INFINITE_ELEMENTS
+
+#endif // LIBMESH_FACE_INF_QUAD_H

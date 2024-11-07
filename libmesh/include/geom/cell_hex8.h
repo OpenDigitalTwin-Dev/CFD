@@ -1,0 +1,247 @@
+// The libMesh Finite Element Library.
+// Copyright (C) 2002-2024 Benjamin S. Kirk, John W. Peterson, Roy H. Stogner
+
+// This library is free software; you can redistribute it and/or
+// modify it under the terms of the GNU Lesser General Public
+// License as published by the Free Software Foundation; either
+// version 2.1 of the License, or (at your option) any later version.
+
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+// Lesser General Public License for more details.
+
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+
+
+#ifndef LIBMESH_CELL_HEX8_H
+#define LIBMESH_CELL_HEX8_H
+
+// Local includes
+#include "libmesh/cell_hex.h"
+
+namespace libMesh
+{
+
+/**
+ * The \p Hex8 is an element in 3D composed of 8 nodes.  It is
+ * numbered like this:
+ *
+ * \verbatim
+ *   HEX8: 7        6
+ *         o--------z
+ *        /:       /|         zeta
+ *       / :      / |          ^   eta (into page)
+ *    4 /  :   5 /  |          | /
+ *     o--------o   |          |/
+ *     |   o....|...o 2        o---> xi
+ *     |  .3    |  /
+ *     | .      | /
+ *     |.       |/
+ *     o--------o
+ *     0        1
+ * \endverbatim
+ *
+ * (xi, eta, zeta) in [-1,1]^3 are the reference element coordinates
+ * associated with the given numbering.
+ *
+ * \author Benjamin S. Kirk
+ * \date 2002
+ * \brief A 3D hexahedral element with 8 nodes.
+ */
+class Hex8 final : public Hex
+{
+public:
+
+  /**
+   * Constructor.  By default this element has no parent.
+   */
+  explicit
+  Hex8 (Elem * p=nullptr) :
+    Hex(num_nodes, p, _nodelinks_data)
+  {}
+
+  Hex8 (Hex8 &&) = delete;
+  Hex8 (const Hex8 &) = delete;
+  Hex8 & operator= (const Hex8 &) = delete;
+  Hex8 & operator= (Hex8 &&) = delete;
+  virtual ~Hex8() = default;
+
+  /**
+   * \returns \p HEX8.
+   */
+  virtual ElemType type () const override { return HEX8; }
+
+  /**
+   * \returns 8.
+   */
+  virtual unsigned int n_nodes() const override { return num_nodes; }
+
+  /**
+   * \returns 1.
+   */
+  virtual unsigned int n_sub_elem() const override { return 1; }
+
+  /**
+   * \returns \p true if the specified (local) node number is a vertex.
+   */
+  virtual bool is_vertex(const unsigned int i) const override;
+
+  /**
+   * \returns \p true if the specified (local) node number is an edge.
+   */
+  virtual bool is_edge(const unsigned int i) const override;
+
+  /**
+   * \returns \p true if the specified (local) node number is a face.
+   */
+  virtual bool is_face(const unsigned int i) const override;
+
+  /**
+   * \returns \p true if the specified (local) node number is on the
+   * specified side.
+   */
+  virtual bool is_node_on_side(const unsigned int n,
+                               const unsigned int s) const override;
+
+  virtual std::vector<unsigned int> nodes_on_side(const unsigned int s) const override;
+
+  virtual std::vector<unsigned int> nodes_on_edge(const unsigned int e) const override;
+
+  /**
+   * \returns \p true if the specified (local) node number is on the
+   * specified edge.
+   */
+  virtual bool is_node_on_edge(const unsigned int n,
+                               const unsigned int e) const override;
+
+  /**
+   * \returns \p true if the element map is definitely affine within
+   * numerical tolerances.
+   */
+  virtual bool has_affine_map () const override;
+
+  /**
+   * \returns FIRST.
+   */
+  virtual Order default_order() const override;
+
+  /**
+   * Builds a QUAD4 built coincident with face i.
+   * The \p std::unique_ptr<Elem> handles the memory aspect.
+   */
+  virtual std::unique_ptr<Elem> build_side_ptr (const unsigned int i,
+                                                bool proxy=false) override;
+
+  /**
+   * Rebuilds a \p QUAD4 built coincident with face i.
+   */
+  virtual void build_side_ptr (std::unique_ptr<Elem> & elem,
+                               const unsigned int i) override;
+
+  /**
+   * Builds a EDGE2 built coincident with edge i.
+   * The \p std::unique_ptr<Elem> handles the memory aspect.
+   */
+  virtual std::unique_ptr<Elem> build_edge_ptr (const unsigned int i) override;
+
+  /**
+   * Rebuilds a \p EDGE2 built coincident with edge i.
+   */
+  virtual void build_edge_ptr (std::unique_ptr<Elem> & edge, const unsigned int i) override;
+
+  virtual void connectivity(const unsigned int sc,
+                            const IOPackage iop,
+                            std::vector<dof_id_type> & conn) const override;
+
+  /**
+   * Geometric constants for Hex8.
+   */
+  static const int num_nodes = 8;
+  static const int nodes_per_side = 4;
+  static const int nodes_per_edge = 2;
+
+  /**
+   * This maps the \f$ j^{th} \f$ node of the \f$ i^{th} \f$ side to
+   * element node numbers.
+   */
+  static const unsigned int side_nodes_map[num_sides][nodes_per_side];
+
+  /**
+   * This maps the \f$ j^{th} \f$ node of the \f$ i^{th} \f$ edge to
+   * element node numbers.
+   */
+  static const unsigned int edge_nodes_map[num_edges][nodes_per_edge];
+
+  /**
+   * Class static helper function that computes the centroid of a
+   * hexahedral region from a set of input points which are assumed to
+   * be in the standard "Hex8" ordering, possibly with some duplicates
+   * indicating a "degenerate" side. Hex8::true_centroid() and
+   * Pyramid5::true_centroid() are implemented in terms of this
+   * function.
+   */
+  static Point centroid_from_points(
+    const Point & x0, const Point & x1, const Point & x2, const Point & x3,
+    const Point & x4, const Point & x5, const Point & x6, const Point & x7);
+
+  /**
+   * We compute the centroid of the Hex using a customized numerical
+   * quadrature approach that avoids unnecessary object creation/heap
+   * allocations.
+   */
+  virtual Point true_centroid () const override;
+
+  /**
+   * A specialization for computing the area of a hexahedron
+   * with flat sides.
+   */
+  virtual Real volume () const override;
+
+  /**
+   * Builds a bounding box out of the nodal positions
+   */
+  virtual BoundingBox loose_bounding_box () const override;
+
+  virtual void permute(unsigned int perm_num) override final;
+
+  virtual void flip(BoundaryInfo *) override final;
+
+  ElemType side_type (const unsigned int s) const override final;
+
+protected:
+
+  /**
+   * Data for links to nodes.
+   */
+  Node * _nodelinks_data[num_nodes];
+
+
+
+#ifdef LIBMESH_ENABLE_AMR
+
+  /**
+   * Matrix used to create the elements children.
+   */
+  virtual Real embedding_matrix (const unsigned int i,
+                                 const unsigned int j,
+                                 const unsigned int k) const override
+  { return _embedding_matrix[i][j][k]; }
+
+  /**
+   * Matrix that computes new nodal locations/solution values
+   * from current nodes/solution.
+   */
+  static const Real _embedding_matrix[num_children][num_nodes][num_nodes];
+
+  LIBMESH_ENABLE_TOPOLOGY_CACHES;
+
+#endif // LIBMESH_ENABLE_AMR
+};
+
+} // namespace libMesh
+
+#endif // LIBMESH_CELL_HEX8_H

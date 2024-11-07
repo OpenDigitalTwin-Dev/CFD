@@ -1,0 +1,1312 @@
+// The libMesh Finite Element Library.
+// Copyright (C) 2002-2024 Benjamin S. Kirk, John W. Peterson, Roy H. Stogner
+
+// This library is free software; you can redistribute it and/or
+// modify it under the terms of the GNU Lesser General Public
+// License as published by the Free Software Foundation; either
+// version 2.1 of the License, or (at your option) any later version.
+
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+// Lesser General Public License for more details.
+
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+// Local includes
+#include "libmesh/libmesh_config.h"
+#include "libmesh/libmesh_logging.h"
+#include "libmesh/boundary_info.h"
+#include "libmesh/bounding_box.h"
+#include "libmesh/elem.h"
+#include "libmesh/gmsh_io.h"
+#include "libmesh/mesh_base.h"
+#include "libmesh/int_range.h"
+#include "libmesh/utility.h" // map_find
+#include "libmesh/enum_to_string.h"
+
+// C++ includes
+#include <fstream>
+#include <set>
+#include <cstring> // std::memcpy
+#include <numeric>
+#include <unordered_map>
+#include <cstddef>
+
+namespace libMesh
+{
+
+// Initialize the static data member
+GmshIO::ElementMaps GmshIO::_element_maps = GmshIO::build_element_maps();
+
+
+
+// Definition of the static function which constructs the ElementMaps object.
+GmshIO::ElementMaps GmshIO::build_element_maps()
+{
+  // Object to be filled up
+  ElementMaps em;
+
+  // POINT (import only)
+  em.in.emplace(15, ElementDefinition(NODEELEM, 15, 0, 1));
+
+  // Add elements with trivial node mappings
+  em.add_def(ElementDefinition(EDGE2, 1, 1, 2));
+  em.add_def(ElementDefinition(EDGE3, 8, 1, 3));
+  em.add_def(ElementDefinition(TRI3, 2, 2, 3));
+  em.add_def(ElementDefinition(TRI6, 9, 2, 6));
+  em.add_def(ElementDefinition(QUAD4, 3, 2, 4));
+  em.add_def(ElementDefinition(QUAD8, 16, 2, 8));
+  em.add_def(ElementDefinition(QUAD9, 10, 2, 9));
+  em.add_def(ElementDefinition(HEX8, 5, 3, 8));
+  em.add_def(ElementDefinition(TET4, 4, 3, 4));
+  em.add_def(ElementDefinition(PRISM6, 6, 3, 6));
+  em.add_def(ElementDefinition(PYRAMID5, 7, 3, 5));
+
+  // Add elements with non-trivial node mappings
+
+  // HEX20
+  {
+    ElementDefinition eledef(HEX20, 17, 3, 20);
+    const unsigned int nodes[] = {0,1,2,3,4,5,6,7,8,11,12,9,13,10,14,15,16,19,17,18};
+    std::vector<unsigned int>(nodes, nodes+eledef.nnodes).swap(eledef.nodes); // swap trick
+    em.add_def(eledef);
+  }
+
+  // HEX27
+  {
+    ElementDefinition eledef(HEX27, 12, 3, 27);
+    const unsigned int nodes[] = {0,1,2,3,4,5,6,7,8,11,12,9,13,10,14,
+                                  15,16,19,17,18,20,21,24,22,23,25,26};
+    std::vector<unsigned int>(nodes, nodes+eledef.nnodes).swap(eledef.nodes); // swap trick
+    em.add_def(eledef);
+  }
+
+  // TET10
+  {
+    ElementDefinition eledef(TET10, 11, 3, 10);
+    const unsigned int nodes[] = {0,1,2,3,4,5,6,7,9,8};
+    std::vector<unsigned int>(nodes, nodes+eledef.nnodes).swap(eledef.nodes); // swap trick
+    em.add_def(eledef);
+  }
+
+  // PRISM15
+  {
+    ElementDefinition eledef(PRISM15, 18, 3, 15);
+    const unsigned int nodes[] = {0,1,2,3,4,5,6,8,9,7,10,11,12,14,13};
+    std::vector<unsigned int>(nodes, nodes+eledef.nnodes).swap(eledef.nodes); // swap trick
+    em.add_def(eledef);
+  }
+
+  // PRISM18
+  {
+    ElementDefinition eledef(PRISM18, 13, 3, 18);
+    const unsigned int nodes[] = {0,1,2,3,4,5,6,8,9,7,10,11,12,14,13,15,17,16};
+    std::vector<unsigned int>(nodes, nodes+eledef.nnodes).swap(eledef.nodes); // swap trick
+    em.add_def(eledef);
+  }
+
+  return em;
+}
+
+
+
+GmshIO::GmshIO (const MeshBase & mesh) :
+  MeshOutput<MeshBase>(mesh),
+  _binary(false),
+  _write_lower_dimensional_elements(true)
+{
+}
+
+
+
+GmshIO::GmshIO (MeshBase & mesh) :
+  MeshInput<MeshBase>  (mesh),
+  MeshOutput<MeshBase> (mesh),
+  _binary (false),
+  _write_lower_dimensional_elements(true)
+{
+}
+
+
+
+bool & GmshIO::binary ()
+{
+  return _binary;
+}
+
+
+
+bool & GmshIO::write_lower_dimensional_elements ()
+{
+  return _write_lower_dimensional_elements;
+}
+
+
+
+void GmshIO::read (const std::string & name)
+{
+  std::ifstream in (name.c_str());
+  this->read_mesh (in);
+}
+
+
+
+void GmshIO::read_mesh(std::istream & in)
+{
+  // This is a serial-only process for now;
+  // the Mesh should be read on processor 0 and
+  // broadcast later
+  libmesh_assert_equal_to (MeshOutput<MeshBase>::mesh().processor_id(), 0);
+
+  libmesh_assert(in.good());
+
+  // clear any data in the mesh
+  MeshBase & mesh = MeshInput<MeshBase>::mesh();
+  mesh.clear();
+
+  // some variables
+  int format=0, size=0;
+  Real version = 1.0;
+
+  // Keep track of lower-dimensional blocks which are not BCs, but
+  // actually blocks of lower-dimensional elements.
+  std::set<subdomain_id_type> lower_dimensional_blocks;
+
+  // Mapping from physical id -> (physical dim, physical name) pairs.
+  // These can refer to either "sidesets" or "subdomains"; we need to
+  // wait until the Mesh has been read to know which is which.  Note
+  // that we are using 'int' as the key here rather than
+  // subdomain_id_type or boundary_id_type, since at this point, it
+  // could be either.
+  typedef std::pair<unsigned, std::string> GmshPhysical;
+  std::map<int, GmshPhysical> gmsh_physicals;
+
+  // map to hold the node numbers for translation
+  // note the the nodes can be non-consecutive
+  std::map<unsigned int, unsigned int> nodetrans;
+
+  // Map from entity tag to physical id. The key is a pair with the first
+  // item being the dimension of the entity and the second item being
+  // the entity tag/id
+  std::map<std::pair<unsigned, int>, int> entity_to_physical_id;
+
+  // Map from entities to bounding boxes.  The key is the same.
+  std::map<std::pair<unsigned, int>, BoundingBox> entity_to_bounding_box;
+
+  // For reading the file line by line
+  std::string s;
+
+  while (true)
+    {
+      // Try to read something.  This may set EOF!
+      std::getline(in, s);
+
+      if (in)
+        {
+          // Process s...
+
+          if (s.find("$MeshFormat") == static_cast<std::string::size_type>(0))
+            {
+              in >> version >> format >> size;
+
+              // Some notes on gmsh mesh versions:
+              //
+              // Mesh version 2.0 goes back as far as I know.  It's not explicitly
+              // mentioned here: http://www.geuz.org/gmsh/doc/VERSIONS.txt
+              //
+              // As of gmsh-2.4.0:
+              // bumped mesh version format to 2.1 (small change in the $PhysicalNames
+              // section, where the group dimension is now required);
+              // [Since we don't even parse the PhysicalNames section at the time
+              //  of this writing, I don't think this change affects us.]
+              //
+              // Mesh version 2.2 tested by Manav Bhatia; no other
+              // libMesh code changes were required for support
+              //
+              // Mesh version 4.0 is a near complete rewrite of the previous mesh version
+              libmesh_error_msg_if(version < 2.0, "Error: Unknown msh file version " << version);
+              libmesh_error_msg_if(format, "Error: Unknown data format for mesh in Gmsh reader.");
+            }
+
+          // Read and process the "PhysicalNames" section.
+          else if (s.find("$PhysicalNames") == static_cast<std::string::size_type>(0))
+            {
+              // The lines in the PhysicalNames section should look like the following:
+              // 2 1 "frac" lower_dimensional_block
+              // 2 3 "top"
+              // 2 4 "bottom"
+              // 3 2 "volume"
+
+              // Read in the number of physical groups to expect in the file.
+              unsigned int num_physical_groups = 0;
+              in >> num_physical_groups;
+
+              // Read rest of line including newline character.
+              std::getline(in, s);
+
+              for (unsigned int i=0; i<num_physical_groups; ++i)
+                {
+                  // Read an entire line of the PhysicalNames section.
+                  std::getline(in, s);
+
+                  // Use an istringstream to extract the physical
+                  // dimension, physical id, and physical name from
+                  // this line.
+                  std::istringstream s_stream(s);
+                  unsigned phys_dim;
+                  int phys_id;
+                  std::string phys_name;
+                  s_stream >> phys_dim >> phys_id >> phys_name;
+
+                  // Not sure if this is true for all Gmsh files, but
+                  // my test file has quotes around the phys_name
+                  // string.  So let's erase any quotes now...
+                  phys_name.erase(std::remove(phys_name.begin(), phys_name.end(), '"'), phys_name.end());
+
+                  // Record this ID for later assignment of subdomain/sideset names.
+                  gmsh_physicals[phys_id] = std::make_pair(phys_dim, phys_name);
+
+                  // If 's' also contains the libmesh-specific string
+                  // "lower_dimensional_block", add this block ID to
+                  // the list of blocks which are not boundary
+                  // conditions.
+                  if (s.find("lower_dimensional_block") != std::string::npos)
+                    {
+                      lower_dimensional_blocks.insert(cast_int<subdomain_id_type>(phys_id));
+
+                      // The user has explicitly told us that this
+                      // block is a subdomain, so set that association
+                      // in the Mesh.
+                      mesh.subdomain_name(cast_int<subdomain_id_type>(phys_id)) = phys_name;
+                    }
+                }
+            }
+
+          else if (s.find("$Entities") == static_cast<std::string::size_type>(0))
+          {
+            if (version >= 4.0)
+            {
+              std::size_t num_point_entities, num_curve_entities, num_surface_entities, num_volume_entities;
+              in >> num_point_entities >> num_curve_entities >> num_surface_entities >> num_volume_entities;
+
+              for (std::size_t n = 0; n < num_point_entities; ++n)
+              {
+                int point_tag, physical_tag;
+                Real x, y, z;
+                std::size_t num_physical_tags;
+                in >> point_tag >> x >> y >> z >> num_physical_tags;
+
+                libmesh_error_msg_if(num_physical_tags > 1,
+                                     "Sorry, you cannot currently specify multiple subdomain or "
+                                     "boundary ids for a given geometric entity");
+
+                entity_to_bounding_box[std::make_pair(0, point_tag)] =
+                  BoundingBox(Point(x,y,z),Point(x,y,z));
+
+                if (num_physical_tags)
+                {
+                  in >> physical_tag;
+                  entity_to_physical_id[std::make_pair(0, point_tag)] = physical_tag;
+                }
+              }
+              for (std::size_t n = 0; n < num_curve_entities; ++n)
+              {
+                int curve_tag, physical_tag;
+                Real minx, miny, minz, maxx, maxy, maxz;
+                std::size_t num_physical_tags;
+                in >> curve_tag >> minx >> miny >> minz >> maxx >> maxy >> maxz >> num_physical_tags;
+
+                libmesh_error_msg_if(num_physical_tags > 1,
+                                     "I don't believe that we can specify multiple subdomain or "
+                                     "boundary ids for a given geometric entity");
+
+                entity_to_bounding_box[std::make_pair(1, curve_tag)] =
+                  BoundingBox(Point(minx,miny,minz),Point(maxx,maxy,maxz));
+
+                if (num_physical_tags)
+                {
+                  in >> physical_tag;
+                  entity_to_physical_id[std::make_pair(1, curve_tag)] = physical_tag;
+                }
+
+                // Read to end of line; this captures bounding information that we don't care about
+                std::getline(in, s);
+              }
+              for (std::size_t n = 0; n < num_surface_entities; ++n)
+              {
+                int surface_tag, physical_tag;
+                Real minx, miny, minz, maxx, maxy, maxz;
+                std::size_t num_physical_tags;
+                in >> surface_tag >> minx >> miny >> minz >> maxx >> maxy >> maxz >> num_physical_tags;
+
+                libmesh_error_msg_if(num_physical_tags > 1,
+                                     "I don't believe that we can specify multiple subdomain or "
+                                     "boundary ids for a given geometric entity");
+
+                entity_to_bounding_box[std::make_pair(2, surface_tag)] =
+                  BoundingBox(Point(minx,miny,minz),Point(maxx,maxy,maxz));
+
+                if (num_physical_tags)
+                {
+                  in >> physical_tag;
+                  entity_to_physical_id[std::make_pair(2, surface_tag)] = physical_tag;
+                }
+
+                // Read to end of line; this captures bounding information that we don't care about
+                std::getline(in, s);
+              }
+              for (std::size_t n = 0; n < num_volume_entities; ++n)
+              {
+                int volume_tag, physical_tag;
+                Real minx, miny, minz, maxx, maxy, maxz;
+                std::size_t num_physical_tags;
+                in >> volume_tag >> minx >> miny >> minz >> maxx >> maxy >> maxz >> num_physical_tags;
+
+                libmesh_error_msg_if(num_physical_tags > 1,
+                                     "I don't believe that we can specify multiple subdomain or "
+                                     "boundary ids for a given geometric entity");
+
+                entity_to_bounding_box[std::make_pair(3, volume_tag)] =
+                  BoundingBox(Point(minx,miny,minz),Point(maxx,maxy,maxz));
+
+                if (num_physical_tags)
+                {
+                  in >> physical_tag;
+                  entity_to_physical_id[std::make_pair(3, volume_tag)] = physical_tag;
+                }
+
+                // Read to end of line; this captures bounding information that we don't care about
+                std::getline(in, s);
+              }
+              // Read the $EndEntities
+              std::getline(in, s);
+            } // end if (version >= 4.0)
+
+            else
+              libmesh_error_msg("The Entities block was introduced in mesh version 4.0");
+          } // end if $Entities
+
+          // read the node block
+          else if (s.find("$NOD") == static_cast<std::string::size_type>(0) ||
+                   s.find("$NOE") == static_cast<std::string::size_type>(0) ||
+                   s.find("$Nodes") == static_cast<std::string::size_type>(0))
+          {
+            if (version < 4.0)
+            {
+              unsigned int num_nodes = 0;
+              in >> num_nodes;
+              mesh.reserve_nodes (num_nodes);
+
+              // read in the nodal coordinates and form points.
+              Real x, y, z;
+              unsigned int id;
+
+              // add the nodal coordinates to the mesh
+              for (unsigned int i=0; i<num_nodes; ++i)
+              {
+                in >> id >> x >> y >> z;
+                mesh.add_point (Point(x, y, z), i);
+                nodetrans[id] = i;
+              }
+            }
+            else
+            {
+              // Read numEntityBlocks line
+              std::size_t num_entities = 0, num_nodes = 0, min_node_tag, max_node_tag;
+              in >> num_entities >> num_nodes >> min_node_tag >> max_node_tag;
+
+              mesh.reserve_nodes(num_nodes);
+
+              std::size_t node_counter = 0;
+
+              // Now loop over entities
+              for (std::size_t i = 0; i < num_entities; ++i)
+              {
+                int entity_dim, entity_tag, parametric;
+                std::size_t num_nodes_in_block = 0;
+                in >> entity_dim >> entity_tag >> parametric >> num_nodes_in_block;
+                libmesh_error_msg_if(parametric, "We don't currently support reading parametric gmsh entities");
+
+                // Read the node tags/ids
+                std::size_t gmsh_id;
+                for (std::size_t n = 0; n < num_nodes_in_block; ++n)
+                {
+
+                  in >> gmsh_id;
+                  nodetrans[gmsh_id] = node_counter++;
+                }
+
+                // Read the node coordinates and add the nodes to the mesh
+                Real x, y, z;
+                for (std::size_t libmesh_id = node_counter - num_nodes_in_block;
+                     libmesh_id < node_counter;
+                     ++libmesh_id)
+                {
+                  in >> x >> y >> z;
+                  mesh.add_point(Point(x, y, z), libmesh_id);
+                }
+              }
+            }
+            // read the $ENDNOD delimiter
+            std::getline(in, s);
+          }
+
+          // Read the element block
+          else if (s.find("$ELM") == static_cast<std::string::size_type>(0) ||
+                   s.find("$Elements") == static_cast<std::string::size_type>(0))
+          {
+            // Keep track of element dimensions seen
+            std::vector<unsigned> elem_dimensions_seen(3);
+
+            if (version < 4.0)
+            {
+              // For reading the number of elements and the node ids from the stream
+              unsigned int
+                num_elem = 0,
+                node_id = 0;
+
+              // read how many elements are there, and reserve space in the mesh
+              in >> num_elem;
+              mesh.reserve_elem (num_elem);
+
+              // As of version 2.2, the format for each element line is:
+              // elm-number elm-type number-of-tags < tag > ... node-number-list
+              // From the Gmsh docs:
+              // * the first tag is the number of the
+              //   physical entity to which the element belongs
+              // * the second is the number of the elementary geometrical
+              //   entity to which the element belongs
+              // * the third is the number of mesh partitions to which the element
+              //   belongs
+              // * The rest of the tags are the partition ids (negative
+              //   partition ids indicate ghost cells). A zero tag is
+              //   equivalent to no tag. Gmsh and most codes using the
+              //   MSH 2 format require at least the first two tags
+              //   (physical and elementary tags).
+
+              // read the elements
+              for (unsigned int iel=0; iel<num_elem; ++iel)
+              {
+                unsigned int
+                  id, type,
+                  physical=1, elementary=1,
+                  nnodes=0, ntags;
+
+                // Note: tag has to be an int because it could be negative,
+                // see above.
+                int tag;
+
+                if (version <= 1.0)
+                  in >> id >> type >> physical >> elementary >> nnodes;
+
+                else
+                {
+                  in >> id >> type >> ntags;
+
+                  if (ntags > 2)
+                    libmesh_do_once(libMesh::err << "Warning, ntags=" << ntags << ", but we currently only support reading 2 flags." << std::endl;);
+
+                  for (unsigned int j = 0; j < ntags; j++)
+                  {
+                    in >> tag;
+                    if (j == 0)
+                      physical = tag;
+                    else if (j == 1)
+                      elementary = tag;
+                  }
+                }
+
+                // Get a reference to the ElementDefinition, throw an error if not found.
+                const GmshIO::ElementDefinition & eletype =
+                  libmesh_map_find(_element_maps.in, type);
+
+                // If we read nnodes, make sure it matches the number in eletype.nnodes
+                libmesh_error_msg_if(nnodes != 0 && nnodes != eletype.nnodes,
+                                     "nnodes = " << nnodes << " and eletype.nnodes = " << eletype.nnodes << " do not match.");
+
+                // Assign the value from the eletype object.
+                nnodes = eletype.nnodes;
+
+                // Don't add 0-dimensional "point" elements to the
+                // Mesh.  They should *always* be treated as boundary
+                // "nodeset" data.
+                if (eletype.dim > 0)
+                {
+                  // Record this element dimension as being "seen".
+                  // We will treat all elements with dimension <
+                  // max(dimension) as specifying boundary conditions,
+                  // but we won't know what max_elem_dimension_seen is
+                  // until we read the entire file.
+                  elem_dimensions_seen[eletype.dim-1] = 1;
+
+                  // Add the element to the mesh
+                  {
+                    Elem * elem =
+                      mesh.add_elem(Elem::build_with_id(eletype.type, iel));
+
+                    // Make sure that the libmesh element we added has nnodes nodes.
+                    libmesh_error_msg_if(elem->n_nodes() != nnodes,
+                                         "Number of nodes for element "
+                                         << id
+                                         << " of type " << eletype.type
+                                         << " (Gmsh type " << type
+                                         << ") does not match Libmesh definition. "
+                                         << "I expected " << elem->n_nodes()
+                                         << " nodes, but got " << nnodes);
+
+                    // Add node pointers to the elements.
+                    // If there is a node translation table, use it.
+                    if (eletype.nodes.size() > 0)
+                      for (unsigned int i=0; i<nnodes; i++)
+                      {
+                        in >> node_id;
+                        elem->set_node(eletype.nodes[i]) = mesh.node_ptr(nodetrans[node_id]);
+                      }
+                    else
+                    {
+                      for (unsigned int i=0; i<nnodes; i++)
+                      {
+                        in >> node_id;
+                        elem->set_node(i) = mesh.node_ptr(nodetrans[node_id]);
+                      }
+                    }
+
+                    // Finally, set the subdomain ID to physical.  If this is a lower-dimension element, this ID will
+                    // eventually go into the Mesh's BoundaryInfo object.
+                    elem->subdomain_id() = static_cast<subdomain_id_type>(physical);
+                  }
+                }
+
+                // Handle 0-dimensional elements (points) by adding
+                // them to the BoundaryInfo object with
+                // boundary_id == physical.
+                else
+                {
+                  // This seems like it should always be the same
+                  // number as the 'id' we already read in on this
+                  // line.  At least it was in the example gmsh
+                  // file I had...
+                  in >> node_id;
+                  mesh.get_boundary_info().add_node
+                    (nodetrans[node_id],
+                     static_cast<boundary_id_type>(physical));
+                }
+              } // element loop
+            } // end if (version < 4.0)
+
+            else
+            {
+              std::size_t num_entity_blocks = 0, num_elem = 0, min_element_tag, max_element_tag;
+
+              // Read entity information
+              in >> num_entity_blocks >> num_elem >> min_element_tag >> max_element_tag;
+
+              mesh.reserve_elem(num_elem);
+
+              std::size_t iel = 0;
+
+              // Loop over entity blocks
+              for (std::size_t i = 0; i < num_entity_blocks; ++i)
+              {
+                int entity_dim, entity_tag;
+                unsigned int element_type;
+                std::size_t num_elems_in_block = 0;
+                in >> entity_dim >> entity_tag >> element_type >> num_elems_in_block;
+
+                // Get a reference to the ElementDefinition
+                const GmshIO::ElementDefinition & eletype =
+                  libmesh_map_find(_element_maps.in, element_type);
+
+                // Don't add 0-dimensional "point" elements to the
+                // Mesh.  They should *always* be treated as boundary
+                // "nodeset" data.
+                if (eletype.dim > 0)
+                {
+                  // Record this element dimension as being "seen".
+                  // We will treat all elements with dimension <
+                  // max(dimension) as specifying boundary conditions,
+                  // but we won't know what max_elem_dimension_seen is
+                  // until we read the entire file.
+                  elem_dimensions_seen[eletype.dim-1] = 1;
+
+                  // Loop over elements with dim > 0
+                  for (std::size_t n = 0; n < num_elems_in_block; ++n)
+                  {
+                    Elem * elem =
+                      mesh.add_elem(Elem::build_with_id(eletype.type, iel++));
+
+                    std::size_t gmsh_element_id;
+                    in >> gmsh_element_id;
+
+                    // Make sure this element isn't somewhere
+                    // unexpected
+
+                    // A default bounding box is [inf,-inf] (empty);
+                    // swap that and we get [-inf,inf] (everything)
+                    BoundingBox expected_bounding_box;
+                    std::swap(expected_bounding_box.min(),
+                              expected_bounding_box.max());
+
+                    if (auto it = entity_to_bounding_box.find
+                          (std::make_pair(entity_dim, entity_tag));
+                        it != entity_to_bounding_box.end())
+                      expected_bounding_box = it->second;
+
+                    // Get the remainder of the line that includes the nodes ids
+                    std::getline(in, s);
+                    std::istringstream is(s);
+                    std::size_t local_node_counter = 0, gmsh_node_id;
+                    while (is >> gmsh_node_id)
+                    {
+                      Node * node = mesh.node_ptr(nodetrans[gmsh_node_id]);
+
+                      // Make sure the file is consistent about entity
+                      // placement.  Well, mostly consistent.  We have
+                      // files that claim a bounding box but still
+                      // have points epsilon outside it.
+                      libmesh_error_msg_if
+                        (!expected_bounding_box.contains_point
+                           (*node, /* abs */ 0, /* relative */ TOLERANCE),
+                         "$Elements dim " << entity_dim << " element "
+                         << gmsh_element_id << " (entity " << entity_tag
+                         << ", " <<
+                         Utility::enum_to_string(eletype.type) <<
+                         ") has node at " << *static_cast<Node*>(node)
+                         << "\n outside entity physical bounding box " <<
+                         expected_bounding_box);
+
+                      // Add node pointers to the elements.
+                      // If there is a node translation table, use it.
+                      if (eletype.nodes.size() > 0)
+                          elem->set_node(eletype.nodes[local_node_counter++]) =
+                            node;
+                      else
+                          elem->set_node(local_node_counter++) = node;
+                    }
+
+                    // Make sure that the libmesh element we added has nnodes nodes.
+                    libmesh_error_msg_if(elem->n_nodes() != local_node_counter,
+                                         "Number of nodes for element "
+                                         << gmsh_element_id
+                                         << " of type " << eletype.type
+                                         << " (Gmsh type " << element_type
+                                         << ") does not match Libmesh definition. "
+                                         << "I expected " << elem->n_nodes()
+                                         << " nodes, but got " << local_node_counter);
+
+                    // Finally, set the subdomain ID to physical.  If this is a lower-dimension element, this ID will
+                    // eventually go into the Mesh's BoundaryInfo object.
+                    elem->subdomain_id() = static_cast<subdomain_id_type>(
+                      entity_to_physical_id[std::make_pair(entity_dim, entity_tag)]);
+
+                  } // end for (loop over elements in entity block)
+                } // end if (eletype.dim > 0)
+
+                else
+                {
+                  for (std::size_t n = 0; n < num_elems_in_block; ++n)
+                  {
+                    std::size_t gmsh_element_id, gmsh_node_id;
+                    in >> gmsh_element_id;
+                    in >> gmsh_node_id;
+
+                    // Make sure the file is consistent about entity
+                    // placement.
+
+                    // A default bounding box is [inf,-inf] (empty);
+                    // swap that and we get [-inf,inf] (everything)
+                    BoundingBox expected_bounding_box;
+                    std::swap(expected_bounding_box.min(),
+                              expected_bounding_box.max());
+
+                    if (auto it = entity_to_bounding_box.find
+                          (std::make_pair(entity_dim, entity_tag));
+                        it != entity_to_bounding_box.end())
+                      expected_bounding_box = it->second;
+
+                    Node * node = mesh.node_ptr(nodetrans[gmsh_node_id]);
+
+                    // We'll accept *mostly* consistent.  We have
+                    // files that claim a bounding box but still have
+                    // points epsilon outside it.
+                    libmesh_error_msg_if
+                      (!expected_bounding_box.contains_point
+                         (*node, /* abs */ 0, /* relative */ TOLERANCE),
+                       "$Elements dim " << entity_dim << " element "
+                       << gmsh_element_id << " (entity " << entity_tag <<
+                       ") has node at " << *static_cast<Node*>(node)
+                       << "\n outside entity physical bounding box " <<
+                       expected_bounding_box);
+
+                    mesh.get_boundary_info().add_node(
+                      node,
+                      static_cast<boundary_id_type>(entity_to_physical_id[
+                                                      std::make_pair(entity_dim, entity_tag)]));
+                  } // end for (loop over elements in entity block)
+                } // end if (eletype.dim == 0)
+              } // end for (loop over entity blocks)
+            } // end if (version >= 4.0)
+
+            // read the $ENDELM delimiter
+            std::getline(in, s);
+
+            // Record the max and min element dimension seen while reading the file.
+            unsigned char
+              max_elem_dimension_seen=1,
+              min_elem_dimension_seen=3;
+
+            for (auto i : index_range(elem_dimensions_seen))
+              if (elem_dimensions_seen[i])
+              {
+                // Debugging
+                // libMesh::out << "Seen elements of dimension " << i+1 << std::endl;
+                max_elem_dimension_seen =
+                  std::max(max_elem_dimension_seen, cast_int<unsigned char>(i+1));
+                min_elem_dimension_seen =
+                  std::min(min_elem_dimension_seen, cast_int<unsigned char>(i+1));
+              }
+
+            // Debugging:
+            // libMesh::out << "max_elem_dimension_seen=" << max_elem_dimension_seen << std::endl;
+            // libMesh::out << "min_elem_dimension_seen=" << min_elem_dimension_seen << std::endl;
+
+
+            // How many different element dimensions did we see while reading from file?
+            unsigned n_dims_seen = std::accumulate(elem_dimensions_seen.begin(),
+                                                   elem_dimensions_seen.end(),
+                                                   static_cast<unsigned>(0),
+                                                   std::plus<unsigned>());
+
+
+            // Set mesh_dimension based on the largest element dimension seen.
+            mesh.set_mesh_dimension(max_elem_dimension_seen);
+
+            // Now that we know the maximum element dimension seen,
+            // we know whether the physical names are subdomain
+            // names or sideset names.
+            for (const auto & pr : gmsh_physicals)
+            {
+              // Extract data
+              int phys_id = pr.first;
+              unsigned phys_dim = pr.second.first;
+              const std::string & phys_name = pr.second.second;
+
+              // If the physical's dimension matches the largest
+              // dimension we've seen, it's a subdomain name.
+              if (phys_dim == max_elem_dimension_seen)
+                mesh.subdomain_name(cast_int<subdomain_id_type>(phys_id)) = phys_name;
+
+              // If it's zero-dimensional then it's a nodeset
+              else if (phys_dim == 0)
+                mesh.get_boundary_info().nodeset_name(cast_int<boundary_id_type>(phys_id)) = phys_name;
+
+              // Otherwise, if it's not a lower-dimensional
+              // block, it's a sideset name.
+              else if (phys_dim < max_elem_dimension_seen &&
+                       !lower_dimensional_blocks.count(cast_int<boundary_id_type>(phys_id)))
+                mesh.get_boundary_info().sideset_name(cast_int<boundary_id_type>(phys_id)) = phys_name;
+            }
+
+            if (n_dims_seen > 1)
+            {
+              // Store lower-dimensional elements in a map sorted
+              // by Elem::key().  We use a multimap for two reasons:
+              // 1.) The hash function is not guaranteed to be
+              // unique, so different lower-dimensional elements
+              // could theoretically hash to the same value,
+              // although this is pretty unlikely.
+              // 2.) The Gmsh file may contain multiple
+              // lower-dimensional elements for a single side in
+              // order to implement multiple boundary ids for a
+              // single side.  These lower-dimensional elements
+              // will all hash to the same value, and we need to
+              // be able to store all of them.
+              typedef std::unordered_multimap<dof_id_type, Elem *> provide_container_t;
+              provide_container_t provide_bcs;
+
+              // 1st loop over active elements - get info about lower-dimensional elements.
+              for (auto & elem : mesh.active_element_ptr_range())
+                if (elem->dim() < max_elem_dimension_seen &&
+                    !lower_dimensional_blocks.count(elem->subdomain_id()))
+                {
+                  // To be consistent with the previous
+                  // GmshIO behavior, add all the
+                  // lower-dimensional elements' nodes to
+                  // the Mesh's BoundaryInfo object with the
+                  // lower-dimensional element's subdomain
+                  // ID.
+                  for (auto n : elem->node_index_range())
+                    mesh.get_boundary_info().add_node(elem->node_id(n),
+                                                      elem->subdomain_id());
+
+                  // Store this elem in a quickly-searchable
+                  // container to use it to assign boundary
+                  // conditions later.
+                  provide_bcs.emplace(elem->key(), elem);
+                }
+
+              // 2nd loop over active elements - use lower dimensional element data to set BCs for higher dimensional elements
+              for (auto & elem : mesh.active_element_ptr_range())
+                if (elem->dim() == max_elem_dimension_seen)
+                {
+                  // This is a max-dimension element that
+                  // may require BCs.  For each of its
+                  // sides, including internal sides, we'll
+                  // see if one more more lower-dimensional elements
+                  // provides boundary information for it.
+                  // Note that we have not yet called
+                  // find_neighbors(), so we can't use
+                  // elem->neighbor(sn) in this algorithm...
+                  for (auto sn : elem->side_index_range())
+                    for (const auto & pr : as_range(provide_bcs.equal_range(elem->key(sn))))
+                    {
+                      // For each side side in the provide_bcs multimap...
+                      // Construct the side for hash verification.
+                      std::unique_ptr<Elem> side (elem->build_side_ptr(sn));
+
+                      // Construct the lower-dimensional element to compare to the side.
+                      Elem * lower_dim_elem = pr.second;
+
+                      // This was a hash, so it might not be perfect.  Let's verify...
+                      if (*lower_dim_elem == *side)
+                      {
+                        // Add the lower-dimensional
+                        // element's subdomain_id as a
+                        // boundary_id for the
+                        // higher-dimensional element.
+                        boundary_id_type bid = cast_int<boundary_id_type>(lower_dim_elem->subdomain_id());
+                        mesh.get_boundary_info().add_side(elem, sn, bid);
+                      }
+                    }
+                }
+
+              // 3rd loop over active elements - Remove the lower-dimensional elements
+              for (auto & elem : mesh.active_element_ptr_range())
+                if (elem->dim() < max_elem_dimension_seen &&
+                    !lower_dimensional_blocks.count(elem->subdomain_id()))
+                  mesh.delete_elem(elem);
+            } // end if (n_dims_seen > 1)
+          } // if $ELM
+
+          continue;
+        } // if (in)
+
+
+      // If !in, check to see if EOF was set.  If so, break out
+      // of while loop.
+      if (in.eof())
+        break;
+
+      // If !in and !in.eof(), stream is in a bad state!
+      libmesh_error_msg("Stream is bad! Perhaps the file does not exist?");
+
+    } // while true
+}
+
+
+
+void GmshIO::write (const std::string & name)
+{
+  if (MeshOutput<MeshBase>::mesh().processor_id() == 0)
+    {
+      // Open the output file stream
+      std::ofstream out_stream (name.c_str());
+
+      // Make sure it opened correctly
+      if (!out_stream.good())
+        libmesh_file_error(name.c_str());
+
+      this->write_mesh (out_stream);
+    }
+}
+
+
+
+void GmshIO::write_nodal_data (const std::string & fname,
+                               const std::vector<Number> & soln,
+                               const std::vector<std::string> & names)
+{
+  LOG_SCOPE("write_nodal_data()", "GmshIO");
+
+  if (MeshOutput<MeshBase>::mesh().processor_id() == 0)
+    this->write_post  (fname, &soln, &names);
+}
+
+
+
+void GmshIO::write_mesh (std::ostream & out_stream)
+{
+  // Be sure that the stream is valid.
+  libmesh_assert (out_stream.good());
+
+  // Get a const reference to the mesh
+  const MeshBase & mesh = MeshOutput<MeshBase>::mesh();
+
+  // If requested, write out lower-dimensional elements for
+  // element-side-based boundary conditions.
+  std::size_t n_boundary_faces = 0;
+  if (this->write_lower_dimensional_elements())
+    n_boundary_faces = mesh.get_boundary_info().n_boundary_conds();
+
+  // Note: we are using version 2.0 of the gmsh output format.
+
+  // Write the file header.
+  out_stream << "$MeshFormat\n";
+  out_stream << "2.0 0 " << sizeof(Real) << '\n';
+  out_stream << "$EndMeshFormat\n";
+
+  // write the nodes in (n x y z) format
+  out_stream << "$Nodes\n";
+  out_stream << mesh.n_nodes() << '\n';
+
+  for (auto v : make_range(mesh.n_nodes()))
+    out_stream << mesh.node_ref(v).id()+1 << " "
+               << mesh.node_ref(v)(0) << " "
+               << mesh.node_ref(v)(1) << " "
+               << mesh.node_ref(v)(2) << '\n';
+  out_stream << "$EndNodes\n";
+
+  {
+    // write the connectivity
+    out_stream << "$Elements\n";
+    out_stream << mesh.n_active_elem() + n_boundary_faces << '\n';
+
+    // loop over the elements
+    for (const auto & elem : mesh.active_element_ptr_range())
+      {
+        // Get a reference to the ElementDefinition object
+        const ElementDefinition & eletype =
+          libmesh_map_find(_element_maps.out, elem->type());
+
+        // The element mapper better not require any more nodes
+        // than are present in the current element!
+        libmesh_assert_less_equal (eletype.nodes.size(), elem->n_nodes());
+
+        // elements ids are 1 based in Gmsh
+        out_stream << elem->id()+1 << " ";
+        // element type
+        out_stream << eletype.gmsh_type;
+
+        // write the number of tags (3) and their values:
+        // 1 (physical entity)
+        // 2 (geometric entity)
+        // 3 (partition entity)
+        out_stream << " 3 "
+                   << static_cast<unsigned int>(elem->subdomain_id())
+                   << " 0 "
+                   << elem->processor_id()+1
+                   << " ";
+
+        // if there is a node translation table, use it
+        if (eletype.nodes.size() > 0)
+          for (auto i : elem->node_index_range())
+            out_stream << elem->node_id(eletype.nodes[i])+1 << " "; // gmsh is 1-based
+        // otherwise keep the same node order
+        else
+          for (auto i : elem->node_index_range())
+            out_stream << elem->node_id(i)+1 << " ";                  // gmsh is 1-based
+        out_stream << "\n";
+      } // element loop
+  }
+
+  {
+    // A counter for writing surface elements to the Gmsh file
+    // sequentially.  We start numbering them with a number strictly
+    // larger than the largest element ID in the mesh.  Note: the
+    // MeshBase docs say "greater than or equal to" the maximum
+    // element id in the mesh, so technically we might need a +1 here,
+    // but all of the implementations return an ID strictly greater
+    // than the largest element ID in the Mesh.
+    unsigned int e_id = mesh.max_elem_id();
+
+    // loop over the elements, writing out boundary faces
+    if (n_boundary_faces)
+      {
+        // Build a list of (elem, side, bc) tuples.
+        auto bc_triples = mesh.get_boundary_info().build_side_list();
+
+        // Loop over these lists, writing data to the file.
+        for (const auto & t : bc_triples)
+          {
+            const Elem & elem = mesh.elem_ref(std::get<0>(t));
+
+            std::unique_ptr<const Elem> side = elem.build_side_ptr(std::get<1>(t));
+
+            // consult the export element table
+            const GmshIO::ElementDefinition & eletype =
+              libmesh_map_find(_element_maps.out, side->type());
+
+            // The element mapper better not require any more nodes
+            // than are present in the current element!
+            libmesh_assert_less_equal (eletype.nodes.size(), side->n_nodes());
+
+            // elements ids are 1-based in Gmsh
+            out_stream << e_id+1 << " ";
+
+            // element type
+            out_stream << eletype.gmsh_type;
+
+            // write the number of tags:
+            // 1 (physical entity)
+            // 2 (geometric entity)
+            // 3 (partition entity)
+            out_stream << " 3 "
+                       << std::get<2>(t)
+                       << " 0 "
+                       << elem.processor_id()+1
+                       << " ";
+
+            // if there is a node translation table, use it
+            if (eletype.nodes.size() > 0)
+              for (auto i : side->node_index_range())
+                out_stream << side->node_id(eletype.nodes[i])+1 << " "; // gmsh is 1-based
+
+            // otherwise keep the same node order
+            else
+              for (auto i : side->node_index_range())
+                out_stream << side->node_id(i)+1 << " ";                // gmsh is 1-based
+
+            // Go to the next line
+            out_stream << "\n";
+
+            // increment this index too...
+            ++e_id;
+          }
+      }
+
+    out_stream << "$EndElements\n";
+  }
+}
+
+
+
+void GmshIO::write_post (const std::string & fname,
+                         const std::vector<Number> * v,
+                         const std::vector<std::string> * solution_names)
+{
+
+  // Should only do this on processor 0!
+  libmesh_assert_equal_to (MeshOutput<MeshBase>::mesh().processor_id(), 0);
+
+  // Create an output stream
+  std::ofstream out_stream(fname.c_str());
+
+  // Make sure it opened correctly
+  if (!out_stream.good())
+    libmesh_file_error(fname.c_str());
+
+  // create a character buffer
+  char buf[80];
+
+  // Get a constant reference to the mesh.
+  const MeshBase & mesh = MeshOutput<MeshBase>::mesh();
+
+  //  write the data
+  if ((solution_names != nullptr) && (v != nullptr))
+    {
+      const unsigned int n_vars =
+        cast_int<unsigned int>(solution_names->size());
+
+      if (!(v->size() == mesh.n_nodes()*n_vars))
+        libMesh::err << "ERROR: v->size()=" << v->size()
+                     << ", mesh.n_nodes()=" << mesh.n_nodes()
+                     << ", n_vars=" << n_vars
+                     << ", mesh.n_nodes()*n_vars=" << mesh.n_nodes()*n_vars
+                     << "\n";
+
+      libmesh_assert_equal_to (v->size(), mesh.n_nodes()*n_vars);
+
+      // write the header
+      out_stream << "$PostFormat\n";
+      if (this->binary())
+        out_stream << "1.2 1 " << sizeof(double) << "\n";
+      else
+        out_stream << "1.2 0 " << sizeof(double) << "\n";
+      out_stream << "$EndPostFormat\n";
+
+      // Loop over the elements to see how much of each type there are
+      unsigned int n_points=0, n_lines=0, n_triangles=0, n_quadrangles=0,
+        n_tetrahedra=0, n_hexahedra=0, n_prisms=0, n_pyramids=0;
+      unsigned int n_scalar=0, n_vector=0, n_tensor=0;
+      unsigned int nb_text2d=0, nb_text2d_chars=0, nb_text3d=0, nb_text3d_chars=0;
+
+      {
+        for (const auto & elem : mesh.active_element_ptr_range())
+          {
+            const ElemType elemtype = elem->type();
+
+            switch (elemtype)
+              {
+              case EDGE2:
+              case EDGE3:
+              case EDGE4:
+                {
+                  n_lines += 1;
+                  break;
+                }
+              case TRI3:
+              case TRI6:
+                {
+                  n_triangles += 1;
+                  break;
+                }
+              case QUAD4:
+              case QUAD8:
+              case QUAD9:
+                {
+                  n_quadrangles += 1;
+                  break;
+                }
+              case TET4:
+              case TET10:
+                {
+                  n_tetrahedra += 1;
+                  break;
+                }
+              case HEX8:
+              case HEX20:
+              case HEX27:
+                {
+                  n_hexahedra += 1;
+                  break;
+                }
+              case PRISM6:
+              case PRISM15:
+              case PRISM18:
+                {
+                  n_prisms += 1;
+                  break;
+                }
+              case PYRAMID5:
+                {
+                  n_pyramids += 1;
+                  break;
+                }
+              default:
+                libmesh_error_msg("ERROR: Nonexistent element type " << Utility::enum_to_string(elem->type()));
+              }
+          }
+      }
+
+      // create a view for each variable
+      for (unsigned int ivar=0; ivar < n_vars; ivar++)
+        {
+          std::string varname = (*solution_names)[ivar];
+
+          // at the moment, we just write out scalar quantities
+          // later this should be made configurable through
+          // options to the writer class
+          n_scalar = 1;
+
+          // write the variable as a view, and the number of time steps
+          out_stream << "$View\n" << varname << " " << 1 << "\n";
+
+          // write how many of each geometry type are written
+          out_stream << n_points * n_scalar << " "
+                     << n_points * n_vector << " "
+                     << n_points * n_tensor << " "
+                     << n_lines * n_scalar << " "
+                     << n_lines * n_vector << " "
+                     << n_lines * n_tensor << " "
+                     << n_triangles * n_scalar << " "
+                     << n_triangles * n_vector << " "
+                     << n_triangles * n_tensor << " "
+                     << n_quadrangles * n_scalar << " "
+                     << n_quadrangles * n_vector << " "
+                     << n_quadrangles * n_tensor << " "
+                     << n_tetrahedra * n_scalar << " "
+                     << n_tetrahedra * n_vector << " "
+                     << n_tetrahedra * n_tensor << " "
+                     << n_hexahedra * n_scalar << " "
+                     << n_hexahedra * n_vector << " "
+                     << n_hexahedra * n_tensor << " "
+                     << n_prisms * n_scalar << " "
+                     << n_prisms * n_vector << " "
+                     << n_prisms * n_tensor << " "
+                     << n_pyramids * n_scalar << " "
+                     << n_pyramids * n_vector << " "
+                     << n_pyramids * n_tensor << " "
+                     << nb_text2d << " "
+                     << nb_text2d_chars << " "
+                     << nb_text3d << " "
+                     << nb_text3d_chars << "\n";
+
+          // if binary, write a marker to identify the endianness of the file
+          if (this->binary())
+            {
+              const int one = 1;
+              std::memcpy(buf, &one, sizeof(int));
+              out_stream.write(buf, sizeof(int));
+            }
+
+          // the time steps (there is just 1 at the moment)
+          if (this->binary())
+            {
+              double one = 1;
+              std::memcpy(buf, &one, sizeof(double));
+              out_stream.write(buf, sizeof(double));
+            }
+          else
+            out_stream << "1\n";
+
+          // Loop over the elements and write out the data
+          for (const auto & elem : mesh.active_element_ptr_range())
+            {
+              const unsigned int nv = elem->n_vertices();
+              // this is quite crappy, but I did not invent that file format!
+              for (unsigned int d=0; d<3; d++)  // loop over the dimensions
+                {
+                  for (unsigned int n=0; n < nv; n++)   // loop over vertices
+                    {
+                      const Point & vertex = elem->point(n);
+                      if (this->binary())
+                        {
+#if defined(LIBMESH_DEFAULT_TRIPLE_PRECISION) || defined(LIBMESH_DEFAULT_QUADRUPLE_PRECISION)
+                          libmesh_warning("Gmsh binary writes use only double precision!");
+#endif
+                          double tmp = double(vertex(d));
+                          std::memcpy(buf, &tmp, sizeof(double));
+                          out_stream.write(reinterpret_cast<char *>(buf), sizeof(double));
+                        }
+                      else
+                        out_stream << vertex(d) << " ";
+                    }
+                  if (!this->binary())
+                    out_stream << "\n";
+                }
+
+              // now finally write out the data
+              for (unsigned int i=0; i < nv; i++)   // loop over vertices
+                if (this->binary())
+                  {
+#ifdef LIBMESH_USE_COMPLEX_NUMBERS
+                    libMesh::out << "WARNING: Gmsh::write_post does not fully support "
+                                 << "complex numbers. Will only write the real part of "
+                                 << "variable " << varname << std::endl;
+#endif
+                    double tmp = double(libmesh_real((*v)[elem->node_id(i)*n_vars + ivar]));
+                    std::memcpy(buf, &tmp, sizeof(double));
+                    out_stream.write(reinterpret_cast<char *>(buf), sizeof(double));
+                  }
+                else
+                  {
+#ifdef LIBMESH_USE_COMPLEX_NUMBERS
+                    libMesh::out << "WARNING: Gmsh::write_post does not fully support "
+                                 << "complex numbers. Will only write the real part of "
+                                 << "variable " << varname << std::endl;
+#endif
+                    out_stream << libmesh_real((*v)[elem->node_id(i)*n_vars + ivar]) << "\n";
+                  }
+            }
+          if (this->binary())
+            out_stream << "\n";
+          out_stream << "$EndView\n";
+
+        } // end variable loop (writing the views)
+    }
+}
+
+} // namespace libMesh

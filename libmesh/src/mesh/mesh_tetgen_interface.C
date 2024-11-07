@@ -1,0 +1,424 @@
+// The libMesh Finite Element Library.
+// Copyright (C) 2002-2024 Benjamin S. Kirk, John W. Peterson, Roy H. Stogner
+
+// This library is free software; you can redistribute it and/or
+// modify it under the terms of the GNU Lesser General Public
+// License as published by the Free Software Foundation; either
+// version 2.1 of the License, or (at your option) any later version.
+
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+// Lesser General Public License for more details.
+
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+#include "libmesh/libmesh_config.h"
+#ifdef LIBMESH_HAVE_TETGEN
+
+
+// C++ includes
+#include <sstream>
+
+// Local includes
+#include "libmesh/mesh_tetgen_interface.h"
+
+#include "libmesh/boundary_info.h"
+#include "libmesh/cell_tet4.h"
+#include "libmesh/face_tri3.h"
+#include "libmesh/mesh_smoother_laplace.h"
+#include "libmesh/unstructured_mesh.h"
+#include "libmesh/utility.h" // binary_find
+#include "libmesh/mesh_tetgen_wrapper.h"
+
+namespace libMesh
+{
+
+//----------------------------------------------------------------------
+// TetGenMeshInterface class members
+TetGenMeshInterface::TetGenMeshInterface (UnstructuredMesh & mesh) :
+  MeshTetInterface(mesh),
+  _serializer(_mesh),
+  _switches("Q")
+{
+}
+
+void TetGenMeshInterface::set_switches(std::string switches)
+{
+  // set the tetgen switch manually:
+  // p = tetrahedralizes a piecewise linear complex (see definition in user manual)
+  // Q = quiet, no terminal output
+  // q = specify a minimum radius/edge ratio
+  // a = tetrahedron volume constraint
+  // V = verbose output
+  // for full list of options and their meaning: see the tetgen manual
+  // (http://wias-berlin.de/software/tetgen/1.5/doc/manual/manual005.html)
+  _switches = std::move(switches);
+}
+
+
+void TetGenMeshInterface::triangulate ()
+{
+  this->triangulate_pointset();
+}
+
+
+void TetGenMeshInterface::triangulate_pointset ()
+{
+  // class tetgen_wrapper allows library access on a basic level:
+  TetGenWrapper tetgen_wrapper;
+
+  // fill input structure with point set data:
+  this->fill_pointlist(tetgen_wrapper);
+
+  // Run TetGen triangulation method:
+  // Q = quiet, no terminal output
+  // V = verbose, more terminal output
+  // Note: if no switch is used, the input must be a list of 3D points
+  // (.node file) and the Delaunay tetrahedralization of this point set
+  // will be generated.
+
+  // Can we apply quality and volume constraints in
+  // triangulate_pointset()?.  On at least one test problem,
+  // specifying any quality or volume constraints here causes tetgen
+  // to segfault down in the insphere method: a nullptr is passed
+  // to the routine.
+  std::ostringstream oss;
+  oss << _switches;
+  // oss << "V"; // verbose operation
+  //oss  << "q" << std::fixed << 2.0;  // quality constraint
+  //oss  << "a" << std::fixed << 100.; // volume constraint
+
+  // But if the user wants refinement, let's do our best.
+  if (_desired_volume)
+    oss  << "a" << std::fixed << _desired_volume; // volume constraint
+
+  tetgen_wrapper.set_switches(oss.str());
+
+  // Run tetgen
+  tetgen_wrapper.run_tetgen();
+
+  // save elements to mesh structure, nodes will not be changed:
+  const unsigned int num_elements   = tetgen_wrapper.get_numberoftetrahedra();
+
+  // Vector that temporarily holds the node labels defining element.
+  unsigned int node_labels[4];
+
+  for (unsigned int i=0; i<num_elements; ++i)
+    {
+      auto elem = Elem::build(TET4);
+
+      // Get the nodes associated with this element
+      for (auto j : elem->node_index_range())
+        node_labels[j] = tetgen_wrapper.get_element_node(i,j);
+
+      // Associate the nodes with this element
+      this->assign_nodes_to_elem(node_labels, elem.get());
+
+      // Finally, add this element to the mesh.
+      this->_mesh.add_elem(std::move(elem));
+    }
+
+  // To the naked eye, a few smoothing iterations usually looks better.
+  // We don't do this by default.
+  if (this->_smooth_after_generating)
+    LaplaceMeshSmoother(this->_mesh).smooth(2);
+}
+
+
+
+void TetGenMeshInterface::pointset_convexhull ()
+{
+  // class tetgen_wrapper allows library access on a basic level
+  TetGenWrapper tetgen_wrapper;
+
+  // Copy Mesh's node points into TetGen data structure
+  this->fill_pointlist(tetgen_wrapper);
+
+  // Run TetGen triangulation method:
+  // Q = quiet, no terminal output
+  // Note: if no switch is used, the input must be a list of 3D points
+  // (.node file) and the Delaunay tetrahedralization of this point set
+  // will be generated.  In this particular function, we are throwing
+  // away the tetrahedra generated by TetGen, and keeping only the
+  // convex hull...
+  tetgen_wrapper.set_switches(_switches);
+  tetgen_wrapper.run_tetgen();
+  unsigned int num_elements   = tetgen_wrapper.get_numberoftrifaces();
+
+  // Delete *all* old elements.  Yes, we legally delete elements while
+  // iterating over them because no entries from the underlying container
+  // are actually erased.
+  for (auto & elem : this->_mesh.element_ptr_range())
+    this->_mesh.delete_elem (elem);
+
+  // We just removed any boundary info associated with element faces
+  // or edges, so let's update the boundary id caches.
+  this->_mesh.get_boundary_info().regenerate_id_sets();
+
+  // Add the 2D elements which comprise the convex hull back to the mesh.
+  // Vector that temporarily holds the node labels defining element.
+  unsigned int node_labels[3];
+
+  for (unsigned int i=0; i<num_elements; ++i)
+    {
+      auto elem = Elem::build(TRI3);
+
+      // Get node labels associated with this element
+      for (auto j : elem->node_index_range())
+        node_labels[j] = tetgen_wrapper.get_triface_node(i,j);
+
+      this->assign_nodes_to_elem(node_labels, elem.get());
+
+      // Finally, add this element to the mesh.
+      this->_mesh.add_elem(std::move(elem));
+    }
+
+  // To the naked eye, a few smoothing iterations usually looks better.
+  // We don't do this by default.
+  if (this->_smooth_after_generating)
+    LaplaceMeshSmoother(this->_mesh).smooth(2);
+}
+
+
+
+
+
+void TetGenMeshInterface::triangulate_conformingDelaunayMesh (double quality_constraint,
+                                                              double volume_constraint)
+{
+  // start triangulation method with empty holes list:
+  std::vector<Point> noholes;
+  triangulate_conformingDelaunayMesh_carvehole(noholes, quality_constraint, volume_constraint);
+}
+
+
+
+void TetGenMeshInterface::triangulate_conformingDelaunayMesh_carvehole  (const std::vector<Point> & holes,
+                                                                         double quality_constraint,
+                                                                         double volume_constraint)
+{
+  // Before calling this function, the Mesh must contain a convex hull
+  // of TRI3 elements which define the boundary.
+  unsigned hull_integrity_check = check_hull_integrity();
+
+  // Possibly die if hull integrity check failed
+  this->process_hull_integrity_result(hull_integrity_check);
+
+  // class tetgen_wrapper allows library access on a basic level
+  TetGenWrapper tetgen_wrapper;
+
+  // Copy Mesh's node points into TetGen data structure
+  this->fill_pointlist(tetgen_wrapper);
+
+  // >>> fill input structure "tetgenio" with facet data:
+  int facet_num = this->_mesh.n_elem();
+
+  // allocate memory in "tetgenio" structure:
+  tetgen_wrapper.allocate_facetlist
+    (facet_num, cast_int<int>(holes.size()));
+
+
+  // Set up tetgen data structures with existing facet information
+  // from the convex hull.
+  {
+    int insertnum = 0;
+    for (auto & elem : this->_mesh.element_ptr_range())
+      {
+        tetgen_wrapper.allocate_facet_polygonlist(insertnum, 1);
+        tetgen_wrapper.allocate_polygon_vertexlist(insertnum, 0, 3);
+
+        for (auto j : elem->node_index_range())
+          {
+            // We need to get the sequential index of elem->node_ptr(j), but
+            // it should already be stored in _sequential_to_libmesh_node_map...
+            unsigned libmesh_node_id = elem->node_id(j);
+
+            // The libmesh node IDs may not be sequential, but can we assume
+            // they are at least in order???  We will do so here.
+            std::vector<unsigned>::iterator node_iter =
+              Utility::binary_find(_sequential_to_libmesh_node_map.begin(),
+                                   _sequential_to_libmesh_node_map.end(),
+                                   libmesh_node_id);
+
+            // Check to see if not found: this could also indicate the sequential
+            // node map is not sorted...
+            libmesh_error_msg_if(node_iter == _sequential_to_libmesh_node_map.end(),
+                                 "Global node " << libmesh_node_id << " not found in sequential node map!");
+
+            int sequential_index = cast_int<int>
+              (std::distance(_sequential_to_libmesh_node_map.begin(),
+                             node_iter));
+
+            // Debugging:
+            //    libMesh::out << "libmesh_node_id=" << libmesh_node_id
+            //         << ", sequential_index=" << sequential_index
+            //         << std::endl;
+
+            tetgen_wrapper.set_vertex(insertnum, // facet number
+                                      0,         // polygon (always 0)
+                                      j,         // local vertex index in tetgen input
+                                      sequential_index);
+          }
+
+        // Go to next facet in polygonlist
+        insertnum++;
+      }
+  }
+
+
+
+  // fill hole list (if there are holes):
+  if (holes.size() > 0)
+    {
+      unsigned hole_index = 0;
+      for (Point ihole : holes)
+        tetgen_wrapper.set_hole(hole_index++,
+                                REAL(ihole(0)),
+                                REAL(ihole(1)),
+                                REAL(ihole(2)));
+    }
+
+
+  // Run TetGen triangulation method
+
+  // Assemble switches: we append the user's switches (if any) to
+  //  - 'p'  tetrahedralize a piecewise linear complex
+  //  - 'C'  check consistency of mesh (avoid inverted elements)
+  //  (see definition and further options in user manual
+  //  http://wias-berlin.de/software/tetgen/1.5/doc/manual/manual005.html )
+  std::ostringstream oss;
+  oss << "pC";
+  oss << _switches;
+
+  if (quality_constraint != 0)
+    oss << "q" << std::fixed << quality_constraint;
+
+  if (volume_constraint != 0)
+    oss << "a" << std::fixed << volume_constraint;
+
+  std::string params = oss.str();
+
+  tetgen_wrapper.set_switches(params); // TetGen switches: Piecewise linear complex, Quiet mode
+  tetgen_wrapper.run_tetgen();
+
+  // => nodes:
+  unsigned int old_nodesnum = this->_mesh.n_nodes();
+  REAL x=0., y=0., z=0.;
+  const unsigned int num_nodes = tetgen_wrapper.get_numberofpoints();
+
+  // Debugging:
+  // libMesh::out << "Original mesh had " << old_nodesnum << " nodes." << std::endl;
+  // libMesh::out << "Reserving space for " << num_nodes << " total nodes." << std::endl;
+
+  // Reserve space for additional nodes in the node map
+  _sequential_to_libmesh_node_map.reserve(num_nodes);
+
+  // Add additional nodes to the Mesh.
+  // Original code had i<=num_nodes here (Note: the indexing is:
+  // foo[3*i], [3*i+1], [3*i+2]) But according to the TetGen docs, "In
+  // all cases, the first item in any array is stored starting at
+  // index [0]."
+  for (unsigned int i=old_nodesnum; i<num_nodes; i++)
+    {
+      // Fill in x, y, z values
+      tetgen_wrapper.get_output_node(i, x,y,z);
+
+      // Catch the node returned by add_point()... this will tell us the ID
+      // assigned by the Mesh.
+      Node * new_node = this->_mesh.add_point ( Point(x,y,z) );
+
+      // Store this new ID in our sequential-to-libmesh node mapping array
+      _sequential_to_libmesh_node_map.push_back( new_node->id() );
+    }
+
+  // Debugging:
+  //  std::copy(_sequential_to_libmesh_node_map.begin(),
+  //    _sequential_to_libmesh_node_map.end(),
+  //    std::ostream_iterator<unsigned>(std::cout, " "));
+  //  std::cout << std::endl;
+
+
+  // => tetrahedra:
+  const unsigned int num_elements = tetgen_wrapper.get_numberoftetrahedra();
+
+  // Vector that temporarily holds the node labels defining element connectivity.
+  unsigned int node_labels[4];
+
+  for (unsigned int i=0; i<num_elements; i++)
+    {
+      // TetGen only supports Tet4 elements.
+      auto elem = Elem::build(TET4);
+
+      // Fill up the the node_labels vector
+      for (auto j : elem->node_index_range())
+        node_labels[j] = tetgen_wrapper.get_element_node(i,j);
+
+      // Associate nodes with this element
+      this->assign_nodes_to_elem(node_labels, elem.get());
+
+      // Finally, add this element to the mesh
+      this->_mesh.add_elem(std::move(elem));
+    }
+
+  // Delete original convex hull elements.  Is there ever a case where
+  // we should not do this?
+  this->delete_2D_hull_elements();
+
+  // To the naked eye, a few smoothing iterations usually looks better.
+  // We don't do this by default.
+  if (this->_smooth_after_generating)
+    LaplaceMeshSmoother(_mesh).smooth(2);
+}
+
+
+
+
+
+void TetGenMeshInterface::fill_pointlist(TetGenWrapper & wrapper)
+{
+  // fill input structure with point set data:
+  wrapper.allocate_pointlist( this->_mesh.n_nodes() );
+
+  // Make enough space to store a mapping between the implied sequential
+  // node numbering used in tetgen and libmesh's (possibly) non-sequential
+  // numbering scheme.
+  _sequential_to_libmesh_node_map.clear();
+  _sequential_to_libmesh_node_map.resize( this->_mesh.n_nodes() );
+
+  {
+    unsigned index = 0;
+    for (auto & node : this->_mesh.node_ptr_range())
+      {
+        _sequential_to_libmesh_node_map[index] = node->id();
+        wrapper.set_node(index++,
+                         REAL((*node)(0)),
+                         REAL((*node)(1)),
+                         REAL((*node)(2)));
+      }
+  }
+}
+
+
+
+
+
+void TetGenMeshInterface::assign_nodes_to_elem(unsigned * node_labels, Elem * elem)
+{
+  for (auto j : elem->node_index_range())
+    {
+      // Get the mapped node index to ask the Mesh for
+      unsigned mapped_node_id = _sequential_to_libmesh_node_map[ node_labels[j] ];
+
+      Node * current_node = this->_mesh.node_ptr( mapped_node_id );
+
+      elem->set_node(j) = current_node;
+    }
+}
+
+} // namespace libMesh
+
+
+#endif // #ifdef LIBMESH_HAVE_TETGEN

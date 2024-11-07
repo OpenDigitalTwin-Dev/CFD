@@ -1,0 +1,16 @@
+# Solve the 2D or 3D problem
+dim = 2
+
+# The element type
+element_type = TRI6
+
+# The coarse grid size from which to start adaptivity
+grid_size = 15
+
+# Higher quadrature order for more accurate error results
+extra_error_quadrature = 2
+
+# Whether the boundary condition applied for p corresponds to a Dirichlet or
+# Neumann condition. Note that a Neumann condition for p in the mixed
+# formulation is a Dirichlet condition for u
+boundary_condition = neumann
