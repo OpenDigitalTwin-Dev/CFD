@@ -1,0 +1,1 @@
+../source/hierarchy/templates/EmptyHierarchyX.C

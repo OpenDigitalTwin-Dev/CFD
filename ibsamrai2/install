@@ -1,0 +1,8 @@
+mkdir build
+cd build
+
+# >>> here the hdf5 compile must use the very simple like cmake .. make make install otherwise won't find
+
+./../configure CFLAGS="-fPIC -g -O2"   CXXFLAGS="-fPIC -g -O2"   FFLAGS="-fPIC -g -O2"  --prefix=$PWD/../../install/samrai_install   --without-petsc   --without-hypre   --without-blaslapack   --without-cubes   --without-eleven   --without-petsc   --without-sundials   --without-x   --with-doxygen   --enable-debug   --disable-opt   --enable-implicit-template-instantiation   --disable-deprecated --with-hdf5=$PWD/../../../install/hdf5_install
+make -j4
+make install

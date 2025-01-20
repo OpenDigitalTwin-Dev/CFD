@@ -1,0 +1,1 @@
+../source/patchdata/fortran/pdat_m4arrdim1d.i
