@@ -6,6 +6,6 @@ export PETSC_DIR=$PWD/../../NLA/install/petsc_install
 
 mkdir build
 cd build
-./../configure --prefix=$PWD/../../install/libmesh_install --enable-petsc-required
+./../configure --prefix=$PWD/../../install/libmesh_install --enable-petsc-required 
 make -j4
 make install
