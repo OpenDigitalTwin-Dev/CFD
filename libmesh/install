@@ -1,4 +1,4 @@
-sudo apt -y install gcc g++ make m4 libmpich-dev libperl5.34 p7zip-full git
+sudo apt -y install gcc g++ make m4 libmpich-dev libperl5.34 p7zip-full git libboost-all-dev
 
 7za x contrib.7z -o/$PWD/
 
