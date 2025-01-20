@@ -2,8 +2,10 @@ sudo apt -y install gcc g++ make m4 libmpich-dev libperl5.34 p7zip-full
 
 7za x contrib.7z -o/$PWD/
 
+export PETSC_DIR=$PWD/../../NLA/install/petsc_install
+
 mkdir build
 cd build
-./../configure --prefix=$PWD/../../install/libmesh_install
+./../configure --prefix=$PWD/../../install/libmesh_install --enable-petsc-required
 make -j4
 make install
