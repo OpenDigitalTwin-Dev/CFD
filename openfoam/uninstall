@@ -1,2 +1,3 @@
 rm -rf OpenFOAM-dev/platforms
 rm -rf ThirdParty-dev/platforms
+rm OpenFOAM-dev/applications/utilities/postProcessing/graphics/PVReaders/Make/linux64GccDPInt32Opt/CMakeCache.txt
