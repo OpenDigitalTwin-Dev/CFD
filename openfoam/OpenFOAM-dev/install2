@@ -4,8 +4,11 @@ sudo apt -y install build-essential libopenmpi-dev zlib1g-dev gnuplot gnuplot-x1
 #openfoam-deps: 
 sudo apt -y install libxml2-dev libhdf5-dev libavfilter-dev libtheora-dev libgl2ps-dev libx11-dev libqt5x11extras5-dev libglew-dev libutfcpp-dev libdouble-conversion-dev libfreetype-dev libqt5svg5-dev qtxmlpatterns5-dev-tools qttools5-dev python3-dev 
 
-sudo apt -y install libpdal-dev # Ubuntu 22.04 and 20.04 only
-# sudo apt -y install libadios2-serial-c-dev libadios2-serial-c++11-dev # Ubuntu 24.04 only
-    
+#sudo apt -y install libpdal-dev # Ubuntu 22.04 and 20.04 only
+sudo apt -y install libadios2-serial-c-dev libadios2-serial-c++11-dev # Ubuntu 24.04 only
+
+sudo apt -y install paraview-dev
+sudo apt -y install libgmsh-dev
+
 source etc/bashrc
-./Allwmake -q -j 32
+./Allwmake -q -j 4
