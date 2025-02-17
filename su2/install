@@ -1,11 +1,16 @@
 sudo apt update
 sudo apt -y install cmake make gcc g++ p7zip-full python3 python3-pip
-sudo pip3 install meson
+#sudo pip3 install meson # for ubuntu 22.04
+sudo apt -y install python3-mesonpy # for ubuntu 24.04, for new python3, pip3 will not be used again
 
 7za x externals.7z -o/$PWD/
 7za x ninja.7z -o/$PWD/
 7za x subprojects.7z -o/$PWD/
 
-# ./meson.py build --reconfigure --prefix=$PWD/install_su2
+# ./meson.py build --reconfigure --prefix=$PWD/../install/su2_install
 ./meson.py build --prefix=$PWD/../install/su2_install
 ./ninja -C build install -j4
+
+# >>> for ubuntu 24.04 you must use the parallel for quickpoint, otherwise will have error and can't run,
+# >>> but for 22.04 there is no problem
+# >>> mpirun -np 2 ./../../install/su2_install/bin/SU2_CFD inv_NACA0012.cfg
