@@ -2,4 +2,4 @@ rm -rf externals
 rm -rf ninja
 rm -rf subprojects
 rm -rf build
-rm -rf ../install/install_su2
+rm -rf ../install/su2_install
