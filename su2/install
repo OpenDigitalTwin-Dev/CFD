@@ -7,5 +7,5 @@ sudo pip3 install meson
 7za x subprojects.7z -o/$PWD/
 
 # ./meson.py build --reconfigure --prefix=$PWD/install_su2
-./meson.py build --prefix=$PWD/../install/install_su2
+./meson.py build --prefix=$PWD/../install/su2_install
 ./ninja -C build install -j4
