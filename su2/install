@@ -14,3 +14,6 @@ sudo apt -y install python3-mesonpy # for ubuntu 24.04, for new python3, pip3 wi
 # >>> for ubuntu 24.04 you must use the parallel for quickpoint, otherwise will have error and can't run,
 # >>> but for 22.04 there is no problem
 # >>> mpirun -np 2 ./../../install/su2_install/bin/SU2_CFD inv_NACA0012.cfg
+
+# if don't remove fengsim website will have error
+rm LICENSE.md
