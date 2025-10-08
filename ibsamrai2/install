@@ -1,3 +1,5 @@
+sudo apt -y install libhdf5-dev
+
 mkdir build
 cd build
 
