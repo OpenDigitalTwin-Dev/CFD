@@ -1,5 +1,11 @@
 sudo apt -y install libhypre-dev libboost-all-dev
 
+cd ../../Tools/fftw/
+./install
+
+cd ../../NLA/lapack/
+./install.sh
+
 cd ../../NLA/petsc/
 ./install_ibamr
 
