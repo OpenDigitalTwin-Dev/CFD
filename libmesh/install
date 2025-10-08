@@ -9,3 +9,6 @@ cd build
 ./../configure --prefix=$PWD/../../install/libmesh_install --enable-petsc-required --with-metis=/usr
 make -j4
 make install
+
+
+# libmesh itself save external libs in contrib dir and also have metis, if don't use --with-metis=/usr in configure, it may use it's own metis but for the example in ibamr, the example use the system metis, then will have some problems, so we need to use --with-metis=/usr
