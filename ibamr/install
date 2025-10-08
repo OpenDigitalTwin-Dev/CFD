@@ -1,6 +1,15 @@
 sudo apt -y install libhypre-dev libboost-all-dev
 
-cd ..
+cd ../../NLA/petsc/
+./install_ibamr
+
+cd ../../CFD/libmesh
+./install
+
+cd ../ibsamrai2/
+./install
+
+cd ../
 
 current_path=$(pwd)
 
