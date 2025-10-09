@@ -1,4 +1,4 @@
-sudo apt -y install libhypre-dev libboost-all-dev
+sudo apt -y install libhypre-dev libboost-all-dev cmake libeigen3-dev gcc gfortran libhdf5-openmpi-dev libmuparser-dev m4 petsc-dev libopenmpi-dev libsiloh5-dev wget which
 
 cd ../../Tools/fftw/
 ./install
@@ -28,7 +28,11 @@ cd build
 
 # >>> it is very strange -DSAMRAI_ROOT=$HOME/Downloads/install/samrai_install can't use $PWD/../ it seems that ../ has some problems
 
-cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=$PWD/../../install/ibamr_install -DPETSC_ROOT=$PWD/../../../NLA/install/petsc_install -DSAMRAI_ROOT=$current_path/install/samrai_install -DLIBMESH_ROOT=$PWD/../../install/libmesh_install -DLIBMESH_METHOD=DEVEL -DIBAMR_FORCE_BUNDLED_BOOST=ON -DIBAMR_FORCE_BUNDLED_EIGEN3=ON -DIBAMR_FORCE_BUNDLED_MUPARSER=ON ..
+# don't use -DIBAMR_FORCE_BUNDLED_MUPARSER=ON for ubuntu 22.04 bundled_muparser is OK but for 24.04 the version has some prolbem.
+
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=$PWD/../../install/ibamr_install -DPETSC_ROOT=$PWD/../../../NLA/install/petsc_install -DSAMRAI_ROOT=$current_path/install/samrai_install -DLIBMESH_ROOT=$PWD/../../install/libmesh_install -DLIBMESH_METHOD=DEVEL -DIBAMR_FORCE_BUNDLED_BOOST=ON -DIBAMR_FORCE_BUNDLED_EIGEN3=ON ..
+
+
 
 make -j4
 make install
