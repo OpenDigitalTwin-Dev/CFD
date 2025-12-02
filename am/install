@@ -1,0 +1,7 @@
+source OpenFOAM-10/etc/bashrc
+cd OpenFOAM-10/
+./Allwmake -q -j 4
+cd ../AdditiveFOAM/
+export FOAM_USER_APPBIN=$PWD/../../install/am_install/bin
+export FOAM_USER_LIBBIN=$PWD/../../install/am_install/lib
+./Allwmake -q -j 4
